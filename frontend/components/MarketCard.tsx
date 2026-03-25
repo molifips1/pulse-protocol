@@ -58,60 +58,96 @@ export function MarketCard(props: Props) {
   const thumbUrl = streamKey ? 'https://thumb.kick.com/thumbnails/' + streamKey + '/1920x1080.webp' : null
 
   return (
-    <div className="bg-pulse-card border border-pulse-border rounded-xl overflow-hidden hover:border-white/20 transition-all duration-200 flex flex-col group">
-
-      {/* Stream Thumbnail */}
+    <div style={{
+      background: '#0E0E1A',
+      border: '1px solid #1A1A2E',
+      borderRadius: '12px',
+      overflow: 'hidden',
+      display: 'flex',
+      flexDirection: 'column',
+      transition: 'border-color 0.2s',
+    }}
+      onMouseEnter={e => (e.currentTarget.style.borderColor = '#3A3A5C')}
+      onMouseLeave={e => (e.currentTarget.style.borderColor = '#1A1A2E')}
+    >
       {thumbUrl && (
-        <a href={kickUrl} target="_blank" rel="noopener noreferrer" className="relative block">
-          <div className="w-full aspect-video bg-pulse-border overflow-hidden">
+        <a href={kickUrl} target="_blank" rel="noopener noreferrer" style={{ position: 'relative', display: 'block' }}>
+          <div style={{ width: '100%', aspectRatio: '16/9', background: '#1A1A2E', overflow: 'hidden' }}>
             <img
               src={thumbUrl}
               alt={streamerName}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
             />
           </div>
-          <div className="absolute top-2 left-2 flex items-center gap-1 bg-red-600 px-2 py-0.5 rounded text-white text-xs font-bold">
-            <span className="live-dot w-1.5 h-1.5 rounded-full bg-white inline-block" />
+          <div style={{
+            position: 'absolute', top: '8px', left: '8px',
+            background: '#e53e3e', padding: '2px 8px',
+            borderRadius: '4px', color: 'white',
+            fontSize: '11px', fontWeight: 'bold',
+            display: 'flex', alignItems: 'center', gap: '4px'
+          }}>
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'white', display: 'inline-block' }} />
             LIVE
           </div>
-          <div className="absolute bottom-2 right-2 bg-black/70 px-2 py-0.5 rounded text-white text-xs font-mono">
+          <div style={{
+            position: 'absolute', bottom: '8px', right: '8px',
+            background: 'rgba(0,0,0,0.7)', padding: '2px 8px',
+            borderRadius: '4px', color: 'white', fontSize: '11px'
+          }}>
             {timeLeft}
           </div>
         </a>
       )}
 
-      {/* Market Info */}
-      <div className="p-3 flex flex-col flex-1">
-        <p className="text-xs text-pulse-muted font-mono mb-1">🎬 {streamerName}</p>
-        <h3 className="text-white text-sm font-semibold leading-snug mb-3 flex-1">{market.title}</h3>
+      <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', flex: 1 }}>
+        <p style={{ fontSize: '11px', color: '#3A3A5C', fontFamily: 'monospace', marginBottom: '4px' }}>
+          🎬 {streamerName}
+        </p>
+        <h3 style={{ color: 'white', fontSize: '14px', fontWeight: '600', lineHeight: '1.4', marginBottom: '12px', flex: 1 }}>
+          {market.title}
+        </h3>
 
-        {/* Odds bar like Polymarket */}
-        <div className="mb-3">
-          <div className="flex justify-between text-xs font-mono mb-1">
-            <span className="text-green-400 font-semibold">Yes {yesPercent}%</span>
-            <span className="text-pulse-muted">${totalPool.toFixed(0)} Vol.</span>
-            <span className="text-red-400 font-semibold">{noPercent}% No</span>
+        <div style={{ marginBottom: '10px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontFamily: 'monospace', marginBottom: '4px' }}>
+            <span style={{ color: '#48bb78', fontWeight: '600' }}>Yes {yesPercent}%</span>
+            <span style={{ color: '#3A3A5C' }}>${totalPool.toFixed(0)} Vol.</span>
+            <span style={{ color: '#fc8181', fontWeight: '600' }}>{noPercent}% No</span>
           </div>
-          <div className="h-1 bg-pulse-border rounded-full overflow-hidden flex">
-            <div className="h-full bg-green-500 transition-all duration-500" style={{ width: yesPercent + '%' }} />
-            <div className="h-full bg-red-500 transition-all duration-500" style={{ width: noPercent + '%' }} />
+          <div style={{ height: '4px', background: '#1A1A2E', borderRadius: '9999px', overflow: 'hidden', display: 'flex' }}>
+            <div style={{ height: '100%', width: yesPercent + '%', background: '#48bb78', transition: 'width 0.5s' }} />
+            <div style={{ height: '100%', width: noPercent + '%', background: '#fc8181', transition: 'width 0.5s' }} />
           </div>
         </div>
 
-        {/* Bet buttons like Polymarket */}
-        <div className="flex gap-2">
+        <div style={{ display: 'flex', gap: '8px' }}>
           <button
             onClick={() => handleBet('yes')}
             disabled={expired}
-            className="flex-1 py-2 rounded-lg text-sm font-semibold bg-green-500/15 text-green-400 border border-green-500/30 hover:bg-green-500/25 hover:border-green-500 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{
+              flex: 1, padding: '8px', borderRadius: '8px',
+              background: 'rgba(72,187,120,0.15)', color: '#48bb78',
+              border: '1px solid rgba(72,187,120,0.3)',
+              fontSize: '13px', fontWeight: '600', cursor: expired ? 'not-allowed' : 'pointer',
+              opacity: expired ? 0.4 : 1, transition: 'all 0.2s'
+            }}
+            onMouseEnter={e => { if (!expired) (e.currentTarget.style.background = 'rgba(72,187,120,0.25)') }}
+            onMouseLeave={e => { if (!expired) (e.currentTarget.style.background = 'rgba(72,187,120,0.15)') }}
           >
             Yes {yesOdds}x
           </button>
           <button
             onClick={() => handleBet('no')}
             disabled={expired}
-            className="flex-1 py-2 rounded-lg text-sm font-semibold bg-red-500/15 text-red-400 border border-red-500/30 hover:bg-red-500/25 hover:border-red-500 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{
+              flex: 1, padding: '8px', borderRadius: '8px',
+              background: 'rgba(252,129,129,0.15)', color: '#fc8181',
+              border: '1px solid rgba(252,129,129,0.3)',
+              fontSize: '13px', fontWeight: '600', cursor: expired ? 'not-allowed' : 'pointer',
+              opacity: expired ? 0.4 : 1, transition: 'all 0.2s'
+            }}
+            onMouseEnter={e => { if (!expired) (e.currentTarget.style.background = 'rgba(252,129,129,0.25)') }}
+            onMouseLeave={e => { if (!expired) (e.currentTarget.style.background = 'rgba(252,129,129,0.15)') }}
           >
             No {noOdds}x
           </button>
