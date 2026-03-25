@@ -19,7 +19,6 @@ export function MarketCard(props: Props) {
   const [betModal, setBetModal] = useState<'yes' | 'no' | null>(null)
   const [timeLeft, setTimeLeft] = useState('')
   const [expired, setExpired] = useState(false)
-  const [imgError, setImgError] = useState(false)
 
   const totalPool = market.total_yes_usdc + market.total_no_usdc
   const yesPercent = totalPool > 0 ? Math.round((market.total_yes_usdc / totalPool) * 100) : 50
@@ -58,25 +57,20 @@ export function MarketCard(props: Props) {
   const kickUrl = 'https://kick.com/' + streamKey
 
   const categoryColors: Record<string, string> = {
-    fps: '#FF6B35',
-    irl: '#9B59B6',
-    sports: '#27AE60',
-    other: '#3498DB'
+    fps: '#FF6B35', irl: '#9B59B6', sports: '#27AE60', other: '#3498DB'
   }
   const categoryColor = categoryColors[market.category] || '#3498DB'
 
   return (
-    <div
-      style={{
-        background: '#111827',
-        border: '1px solid #1F2937',
-        borderRadius: '12px',
-        overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column',
-        transition: 'all 0.2s',
-        cursor: 'pointer',
-      }}
+    <div style={{
+      background: '#111827',
+      border: '1px solid #1F2937',
+      borderRadius: '12px',
+      overflow: 'hidden',
+      display: 'flex',
+      flexDirection: 'column',
+      transition: 'all 0.2s',
+    }}
       onMouseEnter={e => {
         e.currentTarget.style.borderColor = '#374151'
         e.currentTarget.style.transform = 'translateY(-2px)'
@@ -88,87 +82,67 @@ export function MarketCard(props: Props) {
         e.currentTarget.style.boxShadow = 'none'
       }}
     >
-      {/* Thumbnail or placeholder */}
-      <a href={kickUrl} target="_blank" rel="noopener noreferrer" style={{ position: 'relative', display: 'block', textDecoration: 'none' }}>
-        <div style={{ width: '100%', aspectRatio: '16/9', background: '#1F2937', overflow: 'hidden', position: 'relative' }}>
-          {!imgError ? (
-            <img
-              src={'https://thumbnails.kick.com/video_thumbnail/channel/' + streamKey + '/original.webp'}
-              alt={streamerName}
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              onError={() => setImgError(true)}
-            />
-          ) : (
-            <div style={{
-              width: '100%', height: '100%',
-              background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexDirection: 'column', gap: '8px'
-            }}>
-              <div style={{ fontSize: '32px' }}>🎮</div>
-              <p style={{ color: '#6B7280', fontSize: '12px', fontFamily: 'monospace' }}>{streamKey}</p>
-            </div>
-          )}
-
-          {/* Gradient overlay */}
+      {/* Live Stream Player */}
+      {streamKey && (
+        <div style={{ position: 'relative', width: '100%', aspectRatio: '16/9', background: '#000' }}>
+          <iframe
+            src={'https://player.kick.com/' + streamKey + '?autoplay=true&muted=true'}
+            style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+            allowFullScreen
+            allow="autoplay; fullscreen"
+          />
+          {/* LIVE badge */}
           <div style={{
-            position: 'absolute', bottom: 0, left: 0, right: 0,
-            height: '50%',
-            background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)'
-          }} />
+            position: 'absolute', top: '10px', left: '10px',
+            background: '#DC2626', padding: '3px 8px',
+            borderRadius: '4px', color: 'white',
+            fontSize: '11px', fontWeight: 'bold',
+            display: 'flex', alignItems: 'center', gap: '5px',
+            pointerEvents: 'none'
+          }}>
+            <span style={{
+              width: '6px', height: '6px', borderRadius: '50%',
+              background: 'white', display: 'inline-block'
+            }} />
+            LIVE
+          </div>
+          {/* Category badge */}
+          <div style={{
+            position: 'absolute', top: '10px', right: '10px',
+            background: categoryColor + '33',
+            border: '1px solid ' + categoryColor + '66',
+            padding: '3px 8px', borderRadius: '4px',
+            color: categoryColor, fontSize: '10px',
+            fontWeight: '600', fontFamily: 'monospace',
+            textTransform: 'uppercase', letterSpacing: '0.1em',
+            pointerEvents: 'none'
+          }}>
+            {market.category}
+          </div>
         </div>
+      )}
 
-        {/* LIVE badge */}
-        <div style={{
-          position: 'absolute', top: '10px', left: '10px',
-          background: '#DC2626', padding: '3px 8px',
-          borderRadius: '4px', color: 'white',
-          fontSize: '11px', fontWeight: 'bold',
-          display: 'flex', alignItems: 'center', gap: '5px',
-          letterSpacing: '0.05em'
+      {/* Streamer + timer bar */}
+      <div style={{
+        padding: '8px 14px',
+        background: '#0D1117',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        borderBottom: '1px solid #1F2937'
+      }}>
+        <a href={kickUrl} target="_blank" rel="noopener noreferrer" style={{
+          color: '#9CA3AF', fontSize: '12px', fontFamily: 'monospace',
+          textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px'
         }}>
-          <span style={{
-            width: '6px', height: '6px', borderRadius: '50%',
-            background: 'white', display: 'inline-block',
-            animation: 'pulse 1.2s ease-in-out infinite'
-          }} />
-          LIVE
-        </div>
-
-        {/* Category badge */}
-        <div style={{
-          position: 'absolute', top: '10px', right: '10px',
-          background: categoryColor + '33',
-          border: '1px solid ' + categoryColor + '66',
-          padding: '3px 8px', borderRadius: '4px',
-          color: categoryColor, fontSize: '10px',
-          fontWeight: '600', fontFamily: 'monospace',
-          textTransform: 'uppercase', letterSpacing: '0.1em'
-        }}>
-          {market.category}
-        </div>
-
-        {/* Streamer name on image */}
-        <div style={{
-          position: 'absolute', bottom: '8px', left: '10px',
-          color: 'white', fontSize: '13px', fontWeight: '600',
-        }}>
-          {streamerName}
-        </div>
-
-        {/* Timer */}
-        <div style={{
-          position: 'absolute', bottom: '8px', right: '10px',
-          color: '#9CA3AF', fontSize: '11px', fontFamily: 'monospace'
-        }}>
+          🎬 {streamerName}
+          <span style={{ color: '#374151' }}>↗</span>
+        </a>
+        <span style={{ color: '#6B7280', fontSize: '11px', fontFamily: 'monospace' }}>
           {timeLeft}
-        </div>
-      </a>
+        </span>
+      </div>
 
       {/* Content */}
       <div style={{ padding: '14px', display: 'flex', flexDirection: 'column', flex: 1, gap: '12px' }}>
-
-        {/* Market title */}
         <h3 style={{
           color: '#F9FAFB', fontSize: '14px', fontWeight: '600',
           lineHeight: '1.5', margin: 0
@@ -176,7 +150,7 @@ export function MarketCard(props: Props) {
           {market.title}
         </h3>
 
-        {/* Odds bar like Polymarket */}
+        {/* Odds bar */}
         <div>
           <div style={{
             display: 'flex', justifyContent: 'space-between',
