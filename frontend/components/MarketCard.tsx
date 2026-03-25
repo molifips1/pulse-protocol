@@ -22,6 +22,37 @@ const EVENT_COLORS: Record<string, string> = {
   goal: 'text-pulse-green',
   debate_outcome: 'text-blue-400',
   kill: 'text-orange-400',
+  reaction: 'text-purple-400',
+}
+
+function StreamEmbed({ platform, streamKey }: { platform: string, streamKey: string }) {
+  if (platform === 'twitch') {
+    return (
+      <div className="w-full aspect-video bg-black rounded-t-lg overflow-hidden">
+        <iframe
+          src={`https://player.twitch.tv/?channel=${streamKey}&parent=${window.location.hostname}&muted=true&autoplay=true`}
+          height="100%"
+          width="100%"
+          allowFullScreen
+        />
+      </div>
+    )
+  }
+
+  if (platform === 'kick') {
+    return (
+      <div className="w-full aspect-video bg-black rounded-t-lg overflow-hidden">
+        <iframe
+          src={`https://player.kick.com/${streamKey}?autoplay=true&muted=true`}
+          height="100%"
+          width="100%"
+          allowFullScreen
+        />
+      </div>
+    )
+  }
+
+  return null
 }
 
 export function MarketCard({ market, onBetPlaced }: Props) {
@@ -30,12 +61,12 @@ export function MarketCard({ market, onBetPlaced }: Props) {
   const [betModal, setBetModal] = useState<'yes' | 'no' | null>(null)
   const [timeLeft, setTimeLeft] = useState('')
   const [expired, setExpired] = useState(false)
+  const [showStream, setShowStream] = useState(false)
 
   const totalPool = market.total_yes_usdc + market.total_no_usdc
   const yesPercent = totalPool > 0 ? (market.total_yes_usdc / totalPool) * 100 : 50
   const noPercent = 100 - yesPercent
 
-  // Pari-mutuel odds display
   const yesOdds = totalPool > 0 && market.total_yes_usdc > 0
     ? ((totalPool * 0.9925) / market.total_yes_usdc).toFixed(2)
     : market.initial_yes_odds.toFixed(2)
@@ -64,9 +95,32 @@ export function MarketCard({ market, onBetPlaced }: Props) {
     setBetModal(side)
   }
 
+  const platform = market.streams?.platform
+  const streamKey = market.streams?.stream_key
+
   return (
     <>
       <div className="bg-pulse-card border border-pulse-border rounded-lg overflow-hidden hover:border-pulse-muted transition-all duration-200 flex flex-col animate-[fadeIn_0.4s_ease-out]">
+
+        {/* Stream embed toggle */}
+        {platform && streamKey && (
+          <>
+            <button
+              onClick={() => setShowStream(!showStream)}
+              className="w-full px-4 py-2 bg-pulse-border/50 text-xs font-mono text-pulse-muted hover:text-white hover:bg-pulse-border transition-all flex items-center justify-between"
+            >
+              <span className="flex items-center gap-2">
+                <span className="live-dot w-1.5 h-1.5 rounded-full bg-pulse-red inline-block" />
+                {platform === 'twitch' ? '📺 TWITCH' : '🎬 KICK'} · {streamKey}
+              </span>
+              <span>{showStream ? '▲ Hide Stream' : '▼ Watch Stream'}</span>
+            </button>
+            {showStream && (
+              <StreamEmbed platform={platform} streamKey={streamKey} />
+            )}
+          </>
+        )}
+
         {/* Header */}
         <div className="px-4 pt-4 pb-3 border-b border-pulse-border">
           <div className="flex items-start justify-between gap-2 mb-2">
@@ -80,15 +134,15 @@ export function MarketCard({ market, onBetPlaced }: Props) {
                   ? 'border-pulse-muted text-pulse-muted'
                   : 'border-pulse-red text-pulse-red'
               }`}>
-                {expired ? 'LOCKED' : `${timeLeft}`}
+                {expired ? 'LOCKED' : timeLeft}
               </span>
             </div>
           </div>
           <h3 className="text-white font-semibold text-sm leading-snug">{market.title}</h3>
           {market.streams?.streamers && (
             <p className="text-pulse-muted text-xs font-mono mt-1">
-              {market.streams.platform === 'twitch' ? '📺' : '🎬'}{' '}
-              {market.streams.streamers.display_name} · {market.streams.stream_key}
+              {platform === 'twitch' ? '📺' : '🎬'}{' '}
+              {market.streams.streamers.display_name} · {streamKey}
             </p>
           )}
         </div>
@@ -101,14 +155,8 @@ export function MarketCard({ market, onBetPlaced }: Props) {
             <span className="text-pulse-red">NO {noPercent.toFixed(0)}%</span>
           </div>
           <div className="h-1.5 bg-pulse-border rounded-full overflow-hidden flex">
-            <div
-              className="h-full bg-pulse-green transition-all duration-500"
-              style={{ width: `${yesPercent}%` }}
-            />
-            <div
-              className="h-full bg-pulse-red transition-all duration-500"
-              style={{ width: `${noPercent}%` }}
-            />
+            <div className="h-full bg-pulse-green transition-all duration-500" style={{ width: `${yesPercent}%` }} />
+            <div className="h-full bg-pulse-red transition-all duration-500" style={{ width: `${noPercent}%` }} />
           </div>
         </div>
 
