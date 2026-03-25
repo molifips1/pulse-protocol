@@ -1,7 +1,7 @@
-providers = ["node"]
+providers = ["python"]
 
 [phases.install]
-cmds = ["npm install"]
+cmds = ["pip install aiohttp"]
 
 [start]
-cmd = "node index.js"
+cmd = "python detector.py"
