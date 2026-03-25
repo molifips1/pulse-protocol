@@ -1,19 +1,25 @@
 import { Navbar } from '../components/Navbar'
 import { LiveMarketsGrid } from '../components/LiveMarketsGrid'
-import { HeroTicker } from '../components/HeroTicker'
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-pulse-dark">
+    <main style={{ minHeight: '100vh', background: '#0D1117' }}>
       <Navbar />
-      <HeroTicker />
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="flex items-center gap-4 mb-8">
-          <div className="flex items-center gap-2">
-            <span className="live-dot w-2 h-2 rounded-full bg-pulse-red inline-block" />
-            <span className="font-display text-4xl tracking-widest text-white">LIVE MARKETS</span>
+      <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '24px 20px' }}>
+        {/* Header */}
+        <div style={{ marginBottom: '24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+            <span style={{
+              width: '8px', height: '8px', borderRadius: '50%',
+              background: '#DC2626', display: 'inline-block'
+            }} />
+            <h1 style={{ color: 'white', fontSize: '20px', fontWeight: '700', margin: 0 }}>
+              Live Markets
+            </h1>
           </div>
-          <div className="h-px flex-1 bg-gradient-to-r from-pulse-border to-transparent" />
+          <p style={{ color: '#6B7280', fontSize: '14px', margin: 0 }}>
+            AI-detected events on live streams. Bet with USDC on Base.
+          </p>
         </div>
         <LiveMarketsGrid />
       </div>

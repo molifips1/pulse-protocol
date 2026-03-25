@@ -1,36 +1,89 @@
 'use client'
-import { ConnectButton } from '@rainbow-me/rainbowkit'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { ConnectButton } from '@rainbow-me/rainbowkit'
 
 export function Navbar() {
   const path = usePathname()
-  const navLink = "font-mono text-sm transition-colors"
-  const active = "text-white"
-  const inactive = "text-pulse-muted hover:text-white"
 
   return (
-    <nav className="border-b border-pulse-border bg-pulse-dark/90 backdrop-blur-sm sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-        <div className="flex items-center gap-6">
-          <Link href="/" className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-pulse-red rounded-sm flex items-center justify-center">
-              <span className="font-display text-white text-lg leading-none">P</span>
-            </div>
-            <span className="font-display text-xl tracking-widest text-white">PULSE</span>
+    <nav style={{
+      background: '#111827',
+      borderBottom: '1px solid #1F2937',
+      position: 'sticky',
+      top: 0,
+      zIndex: 50,
+      backdropFilter: 'blur(8px)',
+    }}>
+      <div style={{
+        maxWidth: '1400px',
+        margin: '0 auto',
+        padding: '0 20px',
+        height: '56px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '24px',
+      }}>
+        {/* Left: Logo + Nav */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '32px' }}>
+          <Link href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{
+              width: '28px', height: '28px',
+              background: '#DC2626',
+              borderRadius: '6px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontWeight: '900', color: 'white', fontSize: '14px'
+            }}>P</div>
+            <span style={{ color: 'white', fontWeight: '700', fontSize: '16px', letterSpacing: '0.05em' }}>
+              PULSE
+            </span>
           </Link>
-          <div className="hidden md:flex items-center gap-4">
-            <Link href="/" className={`${navLink} ${path === '/' ? active : inactive}`}>Markets</Link>
-            <Link href="/bets" className={`${navLink} ${path === '/bets' ? active : inactive}`}>My Bets</Link>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            {[
+              { href: '/', label: 'Markets' },
+              { href: '/bets', label: 'My Bets' },
+            ].map(item => (
+              <Link key={item.href} href={item.href} style={{
+                textDecoration: 'none',
+                padding: '6px 12px',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: '500',
+                color: path === item.href ? 'white' : '#6B7280',
+                background: path === item.href ? '#1F2937' : 'transparent',
+                transition: 'all 0.15s',
+              }}>
+                {item.label}
+              </Link>
+            ))}
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="hidden md:flex items-center gap-1.5 text-xs font-mono">
-            <span className="live-dot w-1.5 h-1.5 rounded-full bg-pulse-green inline-block" />
-            <span className="text-pulse-green">BASE SEPOLIA</span>
+        {/* Right: Network + Wallet */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '6px',
+            padding: '5px 10px',
+            background: '#0D1117',
+            border: '1px solid #1F2937',
+            borderRadius: '8px',
+          }}>
+            <span style={{
+              width: '7px', height: '7px', borderRadius: '50%',
+              background: '#34D399', display: 'inline-block'
+            }} />
+            <span style={{ color: '#34D399', fontSize: '12px', fontFamily: 'monospace', fontWeight: '600' }}>
+              Base Sepolia
+            </span>
           </div>
-          <ConnectButton showBalance={false} chainStatus="none" accountStatus="avatar" />
+
+          <ConnectButton
+            showBalance={false}
+            chainStatus="none"
+            accountStatus="avatar"
+          />
         </div>
       </div>
     </nav>

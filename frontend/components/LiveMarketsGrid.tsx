@@ -3,11 +3,16 @@ import { useEffect, useState } from 'react'
 import { supabase, type Market } from '../lib/supabase'
 import { MarketCard } from './MarketCard'
 
-const CATEGORY_FILTERS = ['all', 'fps', 'irl', 'sports'] as const
+const FILTERS = [
+  { key: 'all', label: 'All' },
+  { key: 'fps', label: '🎯 FPS' },
+  { key: 'irl', label: '📡 IRL' },
+  { key: 'sports', label: '⚽ Sports' },
+]
 
 export function LiveMarketsGrid() {
   const [markets, setMarkets] = useState<Market[]>([])
-  const [filter, setFilter] = useState<string>('all')
+  const [filter, setFilter] = useState('all')
   const [loading, setLoading] = useState(true)
 
   const fetchMarkets = async () => {
@@ -33,53 +38,69 @@ export function LiveMarketsGrid() {
     return () => { supabase.removeChannel(channel) }
   }, [filter])
 
-  const filterLabel: Record<string, string> = {
-    all: 'All', fps: '🎯 FPS', irl: '📡 IRL', sports: '⚽ Sports'
-  }
-
   return (
     <div>
-      <div className="flex gap-2 mb-6 border-b border-pulse-border pb-4">
-        {(['all', 'fps', 'irl', 'sports'] as const).map(cat => (
+      {/* Filter tabs like Polymarket */}
+      <div style={{
+        display: 'flex', gap: '4px', marginBottom: '20px',
+        borderBottom: '1px solid #1F2937', paddingBottom: '16px'
+      }}>
+        {FILTERS.map(f => (
           <button
-            key={cat}
-            onClick={() => setFilter(cat)}
-            className={'px-4 py-1.5 text-sm font-mono rounded-full transition-all ' + (
-              filter === cat
-                ? 'bg-white text-pulse-dark font-semibold'
-                : 'text-pulse-muted hover:text-white'
-            )}
+            key={f.key}
+            onClick={() => setFilter(f.key)}
+            style={{
+              padding: '6px 16px',
+              borderRadius: '9999px',
+              fontSize: '14px',
+              fontWeight: '500',
+              border: 'none',
+              cursor: 'pointer',
+              transition: 'all 0.15s',
+              background: filter === f.key ? 'white' : 'transparent',
+              color: filter === f.key ? '#111827' : '#6B7280',
+            }}
           >
-            {filterLabel[cat]}
+            {f.label}
           </button>
         ))}
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-          {[...Array(8)].map((_, i) => (
-            <div key={i} className="bg-pulse-card border border-pulse-border rounded-xl h-48 animate-pulse" />
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+          gap: '16px'
+        }}>
+          {[...Array(6)].map((_, i) => (
+            <div key={i} style={{
+              height: '320px', background: '#111827',
+              border: '1px solid #1F2937', borderRadius: '12px',
+              animation: 'pulse 1.5s ease-in-out infinite'
+            }} />
           ))}
         </div>
       ) : markets.length === 0 ? (
-        <EmptyState />
+        <div style={{ textAlign: 'center', padding: '80px 0' }}>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>📡</div>
+          <p style={{ color: 'white', fontSize: '18px', fontWeight: '600', marginBottom: '8px' }}>
+            Scanning Streams
+          </p>
+          <p style={{ color: '#6B7280', fontSize: '14px' }}>
+            AI Watcher is monitoring live streams. Markets appear when events are detected.
+          </p>
+        </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+          gap: '16px'
+        }}>
           {markets.map(market => (
             <MarketCard key={market.id} market={market} onBetPlaced={fetchMarkets} />
           ))}
         </div>
       )}
-    </div>
-  )
-}
-
-function EmptyState() {
-  return (
-    <div className="flex flex-col items-center justify-center py-24 text-center">
-      <div className="text-6xl mb-4">📡</div>
-      <p className="font-display text-2xl tracking-widest text-white mb-2">SCANNING STREAMS</p>
-      <p className="text-pulse-muted font-mono text-sm">AI Watcher is monitoring live streams.</p>
     </div>
   )
 }
