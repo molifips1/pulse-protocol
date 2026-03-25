@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 const RESTRICTED_COUNTRIES = new Set(['CN', 'KP', 'IR', 'SY', 'CU'])
-// US blocked until state licences — remove individual states as licences obtained
-const RESTRICTED_US_STATES = new Set(['US'])
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
 
-  // Skip static assets and API health checks
-  if (pathname.startsWith('/_next') || pathname === '/api/geo' || pathname === '/favicon.ico') {
+  if (pathname.startsWith('/_next') || pathname === '/api/geo' || pathname === '/favicon.ico' || pathname === '/restricted') {
     return NextResponse.next()
   }
 
@@ -16,7 +13,7 @@ export function middleware(req: NextRequest) {
                   req.headers.get('x-vercel-ip-country') ||
                   'XX'
 
-  if (RESTRICTED_COUNTRIES.has(country) || RESTRICTED_US_STATES.has(country)) {
+  if (RESTRICTED_COUNTRIES.has(country)) {
     return NextResponse.redirect(new URL('/restricted', req.url))
   }
 
