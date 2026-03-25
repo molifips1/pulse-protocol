@@ -29,7 +29,7 @@ function StreamEmbed({ streamKey }: { streamKey: string }) {
   return (
     <div className="w-full aspect-video bg-black overflow-hidden">
       <iframe
-        src={`https://player.kick.com/${streamKey}?autoplay=true&muted=true`}
+        src={'https://player.kick.com/' + streamKey + '?autoplay=true&muted=true'}
         height="100%"
         width="100%"
         allowFullScreen
@@ -83,88 +83,77 @@ export function MarketCard({ market, onBetPlaced }: Props) {
   const streamKey = market.streams?.stream_key
 
   return (
-    <>
-      <div className="bg-pulse-card border border-pulse-border rounded-lg overflow-hidden hover:border-pulse-muted transition-all duration-200 flex flex-col animate-[fadeIn_0.4s_ease-out]">
+    <div className="bg-pulse-card border border-pulse-border rounded-lg overflow-hidden hover:border-pulse-muted transition-all duration-200 flex flex-col">
 
-        {/* Stream — always visible */}
-        {platform && streamKey && (
-          <StreamEmbed streamKey={streamKey} />
-        )}
+      {platform && streamKey && (
+        <StreamEmbed streamKey={streamKey} />
+      )}
 
-        {/* Live badge */}
-        {platform && streamKey && (
-          <div className="px-4 py-1.5 bg-pulse-border/30 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="live-dot w-1.5 h-1.5 rounded-full bg-pulse-red inline-block" />
-              <span className="text-xs font-mono text-pulse-red">LIVE</span>
-              <span className="text-xs font-mono text-pulse-muted">kick.com/{streamKey}</span>
-            </div>
-            
-              href={`https://kick.com/${streamKey}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs font-mono text-pulse-muted hover:text-white transition-colors"
-            >
-              Open ↗
-            </a>
+      {platform && streamKey && (
+        <div className="px-4 py-1.5 bg-pulse-border/30 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="live-dot w-1.5 h-1.5 rounded-full bg-pulse-red inline-block" />
+            <span className="text-xs font-mono text-pulse-red">LIVE</span>
+            <span className="text-xs font-mono text-pulse-muted">kick.com/{streamKey}</span>
           </div>
-        )}
-
-        {/* Header */}
-        <div className="px-4 pt-4 pb-3 border-b border-pulse-border">
-          <div className="flex items-start justify-between gap-2 mb-2">
-            <span className="text-lg">{CATEGORY_ICONS[market.category]}</span>
-            <div className="flex items-center gap-2 ml-auto">
-              <span className={`text-xs font-mono uppercase ${EVENT_COLORS[market.event_type] || 'text-pulse-muted'}`}>
-                {market.event_type.replace('_', ' ')}
-              </span>
-              <span className={`text-xs font-mono px-2 py-0.5 rounded border ${
-                expired
-                  ? 'border-pulse-muted text-pulse-muted'
-                  : 'border-pulse-red text-pulse-red'
-              }`}>
-                {expired ? 'LOCKED' : timeLeft}
-              </span>
-            </div>
-          </div>
-          <h3 className="text-white font-semibold text-sm leading-snug">{market.title}</h3>
-          {market.streams?.streamers && (
-            <p className="text-pulse-muted text-xs font-mono mt-1">
-              🎬 {market.streams.streamers.display_name} · {streamKey}
-            </p>
-          )}
-        </div>
-
-        {/* Liquidity bar */}
-        <div className="px-4 py-3">
-          <div className="flex justify-between text-xs font-mono mb-1.5">
-            <span className="text-pulse-green">YES {yesPercent.toFixed(0)}%</span>
-            <span className="text-pulse-muted">${totalPool.toFixed(0)} pool</span>
-            <span className="text-pulse-red">NO {noPercent.toFixed(0)}%</span>
-          </div>
-          <div className="h-1.5 bg-pulse-border rounded-full overflow-hidden flex">
-            <div className="h-full bg-pulse-green transition-all duration-500" style={{ width: `${yesPercent}%` }} />
-            <div className="h-full bg-pulse-red transition-all duration-500" style={{ width: `${noPercent}%` }} />
-          </div>
-        </div>
-
-        {/* Bet buttons */}
-        <div className="px-4 pb-4 flex gap-3 mt-auto">
-          <button
-            onClick={() => handleBet('yes')}
-            disabled={expired || market.status === 'locked'}
-            className="flex-1 py-2.5 rounded border border-pulse-green/40 bg-pulse-green/10 text-pulse-green font-mono text-sm font-semibold hover:bg-pulse-green/20 hover:border-pulse-green transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+          
+            href={'https://kick.com/' + streamKey}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs font-mono text-pulse-muted hover:text-white transition-colors"
           >
-            YES · ×{yesOdds}
-          </button>
-          <button
-            onClick={() => handleBet('no')}
-            disabled={expired || market.status === 'locked'}
-            className="flex-1 py-2.5 rounded border border-pulse-red/40 bg-pulse-red/10 text-pulse-red font-mono text-sm font-semibold hover:bg-pulse-red/20 hover:border-pulse-red transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            NO · ×{noOdds}
-          </button>
+            Open ↗
+          </a>
         </div>
+      )}
+
+      <div className="px-4 pt-4 pb-3 border-b border-pulse-border">
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <span className="text-lg">{CATEGORY_ICONS[market.category]}</span>
+          <div className="flex items-center gap-2 ml-auto">
+            <span className={'text-xs font-mono uppercase ' + (EVENT_COLORS[market.event_type] || 'text-pulse-muted')}>
+              {market.event_type.replace('_', ' ')}
+            </span>
+            <span className={'text-xs font-mono px-2 py-0.5 rounded border ' + (expired ? 'border-pulse-muted text-pulse-muted' : 'border-pulse-red text-pulse-red')}>
+              {expired ? 'LOCKED' : timeLeft}
+            </span>
+          </div>
+        </div>
+        <h3 className="text-white font-semibold text-sm leading-snug">{market.title}</h3>
+        {market.streams?.streamers && (
+          <p className="text-pulse-muted text-xs font-mono mt-1">
+            🎬 {market.streams.streamers.display_name} · {streamKey}
+          </p>
+        )}
+      </div>
+
+      <div className="px-4 py-3">
+        <div className="flex justify-between text-xs font-mono mb-1.5">
+          <span className="text-pulse-green">YES {yesPercent.toFixed(0)}%</span>
+          <span className="text-pulse-muted">${totalPool.toFixed(0)} pool</span>
+          <span className="text-pulse-red">NO {noPercent.toFixed(0)}%</span>
+        </div>
+        <div className="h-1.5 bg-pulse-border rounded-full overflow-hidden flex">
+          <div className="h-full bg-pulse-green transition-all duration-500" style={{ width: yesPercent + '%' }} />
+          <div className="h-full bg-pulse-red transition-all duration-500" style={{ width: noPercent + '%' }} />
+        </div>
+      </div>
+
+      <div className="px-4 pb-4 flex gap-3 mt-auto">
+        <button
+          onClick={() => handleBet('yes')}
+          disabled={expired || market.status === 'locked'}
+          className="flex-1 py-2.5 rounded border border-pulse-green/40 bg-pulse-green/10 text-pulse-green font-mono text-sm font-semibold hover:bg-pulse-green/20 hover:border-pulse-green transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          YES · x{yesOdds}
+        </button>
+        <button
+          onClick={() => handleBet('no')}
+          disabled={expired || market.status === 'locked'}
+          className="flex-1 py-2.5 rounded border border-pulse-red/40 bg-pulse-red/10 text-pulse-red font-mono text-sm font-semibold hover:bg-pulse-red/20 hover:border-pulse-red transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          NO · x{noOdds}
+        </button>
       </div>
 
       {betModal && (
@@ -176,6 +165,6 @@ export function MarketCard({ market, onBetPlaced }: Props) {
           onSuccess={() => { setBetModal(null); onBetPlaced() }}
         />
       )}
-    </>
+    </div>
   )
 }
