@@ -27,17 +27,9 @@ export function LiveMarketsGrid() {
 
   useEffect(() => {
     fetchMarkets()
-
-    // Realtime subscription
-    const channel = supabase
-      .channel('markets-live')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'markets',
-      }, () => fetchMarkets())
+    const channel = supabase.channel('markets-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'markets' }, fetchMarkets)
       .subscribe()
-
     return () => { supabase.removeChannel(channel) }
   }, [filter])
 
@@ -47,17 +39,16 @@ export function LiveMarketsGrid() {
 
   return (
     <div>
-      {/* Category filter */}
-      <div className="flex gap-2 mb-6">
-        {CATEGORY_FILTERS.map(cat => (
+      <div className="flex gap-2 mb-6 border-b border-pulse-border pb-4">
+        {(['all', 'fps', 'irl', 'sports'] as const).map(cat => (
           <button
             key={cat}
             onClick={() => setFilter(cat)}
-            className={`px-4 py-1.5 text-sm font-mono rounded border transition-all ${
+            className={'px-4 py-1.5 text-sm font-mono rounded-full transition-all ' + (
               filter === cat
-                ? 'bg-pulse-red border-pulse-red text-white'
-                : 'border-pulse-border text-pulse-muted hover:border-pulse-red/50 hover:text-white'
-            }`}
+                ? 'bg-white text-pulse-dark font-semibold'
+                : 'text-pulse-muted hover:text-white'
+            )}
           >
             {filterLabel[cat]}
           </button>
@@ -65,15 +56,15 @@ export function LiveMarketsGrid() {
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="bg-pulse-card border border-pulse-border rounded-lg h-64 animate-pulse" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          {[...Array(8)].map((_, i) => (
+            <div key={i} className="bg-pulse-card border border-pulse-border rounded-xl h-48 animate-pulse" />
           ))}
         </div>
       ) : markets.length === 0 ? (
         <EmptyState />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {markets.map(market => (
             <MarketCard key={market.id} market={market} onBetPlaced={fetchMarkets} />
           ))}
@@ -88,7 +79,7 @@ function EmptyState() {
     <div className="flex flex-col items-center justify-center py-24 text-center">
       <div className="text-6xl mb-4">📡</div>
       <p className="font-display text-2xl tracking-widest text-white mb-2">SCANNING STREAMS</p>
-      <p className="text-pulse-muted font-mono text-sm">AI Watcher is monitoring live streams.<br />Markets appear when events are detected.</p>
+      <p className="text-pulse-muted font-mono text-sm">AI Watcher is monitoring live streams.</p>
     </div>
   )
 }
