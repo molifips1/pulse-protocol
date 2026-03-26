@@ -1,7 +1,8 @@
-providers = ["python"]
+[phases.setup]
+nixPkgs = ["python311", "python311Packages.pip", "ffmpeg"]
 
 [phases.install]
-cmds = ["pip install aiohttp"]
+cmds = ["python3.11 -m pip install aiohttp"]
 
 [start]
-cmd = "python detector.py"
+cmd = "python3.11 detector.py"
