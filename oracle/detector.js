@@ -1,8 +1,7 @@
 /**
- * PULSE PROTOCOL — Stream Detector v3
- * - Findet automatisch live Streamer auf Kick
- * - Analysiert Chat für echte Events
- * - Erstellt Märkte via Oracle Webhook
+ * PULSE PROTOCOL — Stream Detector v4
+ * Hardcoded list of 50 Kick streamers
+ * Checks if live, generates markets with Groq
  */
 
 const https = require('https')
@@ -15,7 +14,20 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
 const CHECK_INTERVAL = parseInt(process.env.CHECK_INTERVAL || '60') * 1000
 const MARKET_COOLDOWN = 90000
 
-const activeStreams = new Map()
+const STREAMERS = [
+  'haddzy', 'trainwreckstv', 'roshtein', 'xqc', 'adinross',
+  'mellstroy475', 'xposed', 'classybeef', 'stevewilldoit', 'syztmz',
+  'ac7ionman', 'westcol', 'ilyaselmaliki', 'szymool', 'scurrows',
+  'lobanjicaa', 'teufeurs', 'casinodaddy', 'deuceace', 'vondice',
+  'mitchjones', 'elzeein', 'corinnakopf', 'cheesur', 'taour',
+  'tyceno', 'caseoh', 'bougassaa', 'nahoule82k', 'vodkafunky',
+  '7idan7777', 'mathematicien', 'paymoneywubby', 'butisito', 'zonagemelosoficial',
+  'lospollosTV', 'letsgiveItaspin', 'ngslot', 'striker6x6', 'rombears',
+  'real_bazzi', 'hunterowner', 'kingkulbik', 'sniff', 'capatob',
+  'jarttu84', 'snutz', 'andymilonakis', 'snikwins', 'gtasty',
+  'orangemorange'
+]
+
 const marketCooldowns = new Map()
 
 async function fetchJson(url, options = {}, body = null) {
@@ -29,8 +41,9 @@ async function fetchJson(url, options = {}, body = null) {
       path: urlObj.pathname + urlObj.search,
       method: options.method || 'GET',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'application/json',
+        'Accept-Language': 'en-US,en;q=0.9',
         ...(options.headers || {})
       }
     }
@@ -43,104 +56,79 @@ async function fetchJson(url, options = {}, body = null) {
       })
     })
     req.on('error', reject)
-    req.setTimeout(15000, () => { req.destroy(); reject(new Error('Timeout')) })
+    req.setTimeout(10000, () => { req.destroy(); reject(new Error('Timeout')) })
     if (body) req.write(JSON.stringify(body))
     req.end()
   })
 }
 
-async function getTopLiveStreams() {
-  const liveStreams = []
+async function checkIfLive(channel) {
   try {
-    const result = await fetchJson('https://kick.com/api/v2/livestreams?limit=20&sort=viewers&subcategory=', {
-      headers: { 'Referer': 'https://kick.com' }
+    const result = await fetchJson(`https://kick.com/api/v1/channels/${channel}`, {
+      headers: { 'Referer': 'https://kick.com', 'Origin': 'https://kick.com' }
     })
-    if (result.status === 200 && Array.isArray(result.data?.data)) {
-      for (const channel of result.data.data) {
-        if (channel.livestream && channel.slug) {
-          liveStreams.push({
-            channel: channel.slug,
-            streamer_name: channel.user?.username || channel.slug,
-            title: channel.livestream.session_title || '',
-            category: channel.livestream.categories?.[0]?.slug || 'other',
-            category_name: channel.livestream.categories?.[0]?.name || 'Other',
-            viewers: channel.livestream.viewer_count || 0,
-          })
+    if (result.status === 200 && result.data) {
+      const d = result.data
+      if (d.livestream) {
+        return {
+          isLive: true,
+          title: d.livestream.session_title || '',
+          category: d.livestream.categories?.[0]?.slug || 'other',
+          category_name: d.livestream.categories?.[0]?.name || 'Live Stream',
+          viewers: d.livestream.viewer_count || 0,
+          streamer_name: d.user?.username || channel
         }
       }
     }
   } catch (e) {
-    console.log(`[DETECTOR] Failed to fetch top streams: ${e.message}`)
+    // silent fail
   }
-  liveStreams.sort((a, b) => b.viewers - a.viewers)
-  return liveStreams.slice(0, 5)
+  return { isLive: false }
 }
 
 function getGameCategory(kickCategory) {
-  const fps = ['valorant', 'counter-strike', 'apex-legends', 'overwatch-2', 'call-of-duty']
-  const sports = ['fifa', 'ea-sports-fc', 'nba-2k', 'rocket-league', 'madden']
-  const irl = ['just-chatting', 'irl', 'pools-hot-tubs-beaches', 'talk-shows']
-  if (fps.some(g => kickCategory.includes(g))) return 'fps'
-  if (sports.some(g => kickCategory.includes(g))) return 'sports'
-  if (irl.some(g => kickCategory.includes(g))) return 'irl'
+  const cat = kickCategory.toLowerCase()
+  if (['valorant', 'counter-strike', 'apex-legends', 'overwatch', 'call-of-duty', 'fortnite'].some(g => cat.includes(g))) return 'fps'
+  if (['fifa', 'ea-sports', 'nba-2k', 'rocket-league', 'madden', 'football'].some(g => cat.includes(g))) return 'sports'
+  if (['just-chatting', 'irl', 'talk', 'slots', 'casino', 'poker', 'gambling'].some(g => cat.includes(g))) return 'irl'
   return 'other'
 }
 
-async function syncStreamsToSupabase(liveStreams) {
-  try {
-    await fetchJson(
-      `${ORACLE_URL}/webhook/sync-streams`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-pulse-secret': WEBHOOK_SECRET } },
-      { streams: liveStreams }
-    )
-  } catch (e) {
-    console.log(`[DETECTOR] Stream sync failed: ${e.message}`)
-  }
-}
-
-async function generateMarketWithGroq(stream) {
+async function generateMarketWithGroq(channel, streamInfo) {
   if (!GROQ_API_KEY) return null
-  const gameCategory = getGameCategory(stream.category)
-  const categoryContext = {
-    fps: 'This is a competitive FPS game. Events include: clutch rounds, kills, deaths, round wins/losses.',
-    sports: 'This is a sports game. Events include: goals, saves, penalties, match results.',
-    irl: 'This is a Just Chatting/IRL stream. Events include: debates, reactions, donation goals, challenges.',
-    other: 'This is a live stream. Create an engaging prediction market.'
-  }
-  const prompt = `You are creating a prediction market for a live Kick.com stream.
 
-Streamer: ${stream.streamer_name} (@${stream.channel})
-Stream title: "${stream.title}"
-Game/Category: ${stream.category_name}
-Current viewers: ${stream.viewers}
+  const gameCategory = getGameCategory(streamInfo.category)
+  const categoryContext = {
+    fps: 'FPS game — clutch rounds, kills, deaths, round wins possible.',
+    sports: 'Sports game — goals, saves, penalties, match results possible.',
+    irl: 'IRL/Casino/Just Chatting — big wins, losses, reactions, debates possible.',
+    other: 'Live stream — create an exciting prediction market.'
+  }
+
+  const prompt = `Create a prediction market for this live Kick.com stream.
+
+Streamer: ${streamInfo.streamer_name} (@${channel})
+Title: "${streamInfo.title}"
+Category: ${streamInfo.category_name}
+Viewers: ${streamInfo.viewers}
 Context: ${categoryContext[gameCategory]}
 
-Create ONE exciting binary (yes/no) prediction market that:
-1. Can be resolved within 60 seconds
-2. Is specific to what might happen NOW in this stream
-3. Would excite viewers to bet on
+Create ONE exciting yes/no prediction market resolvable in 60 seconds.
 
-Respond ONLY with valid JSON:
-{
-  "event_type": "clutch|win|loss|goal|reaction|debate_outcome|donation_goal|kill|other",
-  "market_title": "Will ${stream.streamer_name} [specific action]?",
-  "confidence": 0.88
-}`
+Respond ONLY with JSON:
+{"event_type":"clutch|win|loss|goal|reaction|big_win|debate_outcome|other","market_title":"Will ${streamInfo.streamer_name} [action]?","confidence":0.88}`
 
   try {
     const result = await fetchJson(
       'https://api.groq.com/openai/v1/chat/completions',
       {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${GROQ_API_KEY}`,
-          'Content-Type': 'application/json'
-        }
+        headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' }
       },
       {
         model: 'llama-3.3-70b-versatile',
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: 150,
+        max_tokens: 120,
         temperature: 0.8
       }
     )
@@ -148,8 +136,6 @@ Respond ONLY with valid JSON:
       const content = result.data.choices[0].message.content
       const match = content.match(/\{[\s\S]*?\}/)
       if (match) return JSON.parse(match[0])
-    } else {
-      console.log(`[GROQ] Error ${result.status}`)
     }
   } catch (e) {
     console.log(`[GROQ] Failed: ${e.message}`)
@@ -157,9 +143,22 @@ Respond ONLY with valid JSON:
   return null
 }
 
-async function fireMarketCreation(stream, event, streamDbId) {
+async function syncStreamToOracle(channel, streamInfo) {
+  try {
+    await fetchJson(
+      `${ORACLE_URL}/webhook/sync-streams`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-pulse-secret': WEBHOOK_SECRET } },
+      { streams: [{ channel, ...streamInfo }] }
+    )
+  } catch (e) {
+    console.log(`[DETECTOR] Sync failed: ${e.message}`)
+  }
+}
+
+async function fireMarketCreation(channel, streamInfo, event) {
+  const gameCategory = getGameCategory(streamInfo.category)
   const payload = {
-    streamId: streamDbId,
+    streamId: channel,
     streamerId: null,
     streamerWallet: '0x0000000000000000000000000000000000000000',
     eventType: event.event_type,
@@ -167,8 +166,8 @@ async function fireMarketCreation(stream, event, streamDbId) {
     marketTitle: event.market_title,
     bettingWindowSeconds: 60,
     frameHash: crypto.randomBytes(32).toString('hex'),
-    rawDetection: { source: 'groq_text_v3', channel: stream.channel, viewers: stream.viewers },
-    category: getGameCategory(stream.category)
+    rawDetection: { source: 'groq_v4', channel, viewers: streamInfo.viewers },
+    category: gameCategory
   }
   try {
     const result = await fetchJson(
@@ -177,10 +176,10 @@ async function fireMarketCreation(stream, event, streamDbId) {
       payload
     )
     if (result.status === 200) {
-      console.log(`[DETECTOR] ✅ Market created: ${event.market_title}`)
+      console.log(`[DETECTOR] Market created: ${event.market_title}`)
       return true
     } else {
-      console.log(`[DETECTOR] ❌ Oracle error: ${JSON.stringify(result.data)}`)
+      console.log(`[DETECTOR] Oracle error: ${JSON.stringify(result.data)}`)
     }
   } catch (e) {
     console.log(`[DETECTOR] Webhook failed: ${e.message}`)
@@ -189,40 +188,68 @@ async function fireMarketCreation(stream, event, streamDbId) {
 }
 
 async function mainLoop() {
-  console.log('[DETECTOR] 🔍 Scanning Kick for live streams...')
-  const liveStreams = await getTopLiveStreams()
-  if (liveStreams.length === 0) {
-    console.log('[DETECTOR] ⚠️  No live streams found, retrying...')
+  console.log(`[DETECTOR] Checking ${STREAMERS.length} streamers...`)
+  const liveStreamers = []
+
+  // Check all streamers in parallel batches of 5
+  for (let i = 0; i < STREAMERS.length; i += 5) {
+    const batch = STREAMERS.slice(i, i + 5)
+    const results = await Promise.all(batch.map(async (channel) => {
+      const info = await checkIfLive(channel)
+      return { channel, ...info }
+    }))
+    liveStreamers.push(...results.filter(r => r.isLive))
+    await new Promise(r => setTimeout(r, 500)) // small delay between batches
+  }
+
+  if (liveStreamers.length === 0) {
+    console.log('[DETECTOR] No streamers live right now')
     return
   }
-  console.log(`[DETECTOR] 📺 Found ${liveStreams.length} live streams:`)
-  liveStreams.forEach(s => console.log(`  - ${s.channel} (${s.viewers} viewers) "${s.title}"`))
-  await syncStreamsToSupabase(liveStreams)
-  for (const stream of liveStreams) {
-    const streamKey = stream.channel
-    const lastMarket = marketCooldowns.get(streamKey) || 0
+
+  // Sort by viewers
+  liveStreamers.sort((a, b) => (b.viewers || 0) - (a.viewers || 0))
+  console.log(`[DETECTOR] ${liveStreamers.length} streamers live:`)
+  liveStreamers.slice(0, 5).forEach(s => console.log(`  - ${s.channel} (${s.viewers} viewers)`))
+
+  // Sync top 5 to Supabase
+  try {
+    await fetchJson(
+      `${ORACLE_URL}/webhook/sync-streams`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-pulse-secret': WEBHOOK_SECRET } },
+      { streams: liveStreamers.slice(0, 5) }
+    )
+    console.log('[DETECTOR] Streams synced to Supabase')
+  } catch (e) {
+    console.log(`[DETECTOR] Sync failed: ${e.message}`)
+  }
+
+  // Generate markets for top 5 live streamers
+  for (const streamer of liveStreamers.slice(0, 5)) {
+    const lastMarket = marketCooldowns.get(streamer.channel) || 0
     const cooldownOk = (Date.now() - lastMarket) > MARKET_COOLDOWN
-    if (!cooldownOk) {
-      console.log(`[DETECTOR] ⏳ Cooldown active for ${stream.channel}`)
-      continue
-    }
-    console.log(`[DETECTOR] 🧠 Generating market for ${stream.channel}...`)
-    const event = await generateMarketWithGroq(stream)
+
+    if (!cooldownOk) continue
+
+    console.log(`[DETECTOR] Generating market for ${streamer.channel}...`)
+    const event = await generateMarketWithGroq(streamer.channel, streamer)
+
     if (event && event.market_title) {
-      console.log(`[DETECTOR] 🎯 ${event.market_title} (${Math.round(event.confidence * 100)}%)`)
-      const success = await fireMarketCreation(stream, event, streamKey)
-      if (success) marketCooldowns.set(streamKey, Date.now())
+      console.log(`[DETECTOR] ${event.market_title}`)
+      const success = await fireMarketCreation(streamer.channel, streamer, event)
+      if (success) marketCooldowns.set(streamer.channel, Date.now())
     }
-    await new Promise(r => setTimeout(r, 2000))
+
+    await new Promise(r => setTimeout(r, 1000))
   }
 }
 
-console.log('[DETECTOR] 🚀 Pulse Detector v3 starting...')
+console.log('[DETECTOR] Pulse Detector v4 starting...')
+console.log(`[DETECTOR] Monitoring ${STREAMERS.length} streamers`)
 console.log(`[DETECTOR] Oracle: ${ORACLE_URL}`)
-console.log(`[DETECTOR] Check interval: ${CHECK_INTERVAL/1000}s`)
 
 if (!GROQ_API_KEY) {
-  console.log('[DETECTOR] ❌ GROQ_API_KEY not set!')
+  console.log('[DETECTOR] GROQ_API_KEY not set!')
   process.exit(1)
 }
 
