@@ -1,5 +1,8 @@
 [phases.setup]
-nixPkgs = ["python311", "python311Packages.aiohttp", "ffmpeg"]
+nixPkgs = ["nodejs_20", "ffmpeg"]
+
+[phases.install]
+cmds = ["npm install"]
 
 [start]
-cmd = "python3.11 detector.py"
+cmd = "node detector.js"
