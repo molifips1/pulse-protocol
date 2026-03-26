@@ -52,7 +52,7 @@ async function fetchJson(url, options = {}, body = null) {
 async function getTopLiveStreams() {
   const liveStreams = []
   try {
-    const result = await fetchJson('https://kick.com/api/v2/channels?limit=20&sort=viewers', {
+    const result = await fetchJson('https://kick.com/api/v2/livestreams?limit=20&sort=viewers&subcategory=', {
       headers: { 'Referer': 'https://kick.com' }
     })
     if (result.status === 200 && Array.isArray(result.data?.data)) {
