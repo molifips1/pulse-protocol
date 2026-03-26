@@ -45,14 +45,17 @@ async function signResolution(marketId, outcome) {
   return oracleWallet.signMessage(ethers.getBytes(msgHash));
 }
 
-// ============ Routes ============
-
 app.post('/webhook/event-detected', async (req, res) => {
   if (!verifyWebhookSecret(req)) return res.status(401).json({ error: 'Unauthorised' });
 
-  const { streamId, streamerId, streamerWallet, eventType, confidence, marketTitle, bettingWindowSeconds = 60, frameHash, rawDetection, category } = req.body;
+  const {
+    streamId, streamerId, streamerWallet, eventType, confidence,
+    marketTitle, bettingWindowSeconds = 60, frameHash, rawDetection, category
+  } = req.body;
 
-  if (!streamId || !eventType || !marketTitle) return res.status(400).json({ error: 'Missing required fields' });
+  if (!streamId || !eventType || !marketTitle) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
 
   try {
     const timestamp = Date.now();
@@ -60,13 +63,9 @@ app.post('/webhook/event-detected', async (req, res) => {
     const closesAt = new Date(timestamp + bettingWindowSeconds * 1000);
     const autoVoidAt = new Date(timestamp + (bettingWindowSeconds + 600) * 1000);
 
-    // Find stream UUID from stream_key
     let streamUUID = null;
     const { data: streamRow } = await supabase
-      .from('streams')
-      .select('id')
-      .eq('stream_key', streamId)
-      .single();
+      .from('streams').select('id').eq('stream_key', streamId).single();
     if (streamRow) streamUUID = streamRow.id;
 
     const { data: market, error: dbErr } = await supabase
@@ -86,8 +85,7 @@ app.post('/webhook/event-detected', async (req, res) => {
         oracle_frame_hash: frameHash,
         oracle_confidence: confidence,
       })
-      .select()
-      .single();
+      .select().single();
 
     if (dbErr) throw dbErr;
 
@@ -102,7 +100,11 @@ app.post('/webhook/event-detected', async (req, res) => {
     });
 
     try {
-      const tx = await vault.createMarket(contractMarketId, streamerWallet || ethers.ZeroAddress, bettingWindowSeconds);
+      const tx = await vault.createMarket(
+        contractMarketId,
+        streamerWallet || ethers.ZeroAddress,
+        bettingWindowSeconds
+      );
       const receipt = await tx.wait();
       console.log(`[ORACLE] Market created: ${market.id} | tx: ${receipt.hash}`);
       res.json({ success: true, marketId: market.id, contractMarketId, tx: receipt.hash });
@@ -121,7 +123,9 @@ app.post('/webhook/resolve-market', async (req, res) => {
   if (!verifyWebhookSecret(req)) return res.status(401).json({ error: 'Unauthorised' });
 
   const { contractMarketId, supabaseMarketId, outcome, confidence, frameHash } = req.body;
-  if (!contractMarketId || !supabaseMarketId || !outcome) return res.status(400).json({ error: 'Missing required fields' });
+  if (!contractMarketId || !supabaseMarketId || !outcome) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
 
   const outcomeEnum = outcome === 'yes' ? 1 : 2;
 
@@ -131,18 +135,24 @@ app.post('/webhook/resolve-market', async (req, res) => {
     const receipt = await tx.wait();
 
     await supabase.from('markets').update({
-      status: 'resolved', outcome, oracle_signature: signature,
-      oracle_frame_hash: frameHash, oracle_confidence: confidence,
-      settlement_tx: receipt.hash, updated_at: new Date().toISOString()
+      status: 'resolved',
+      outcome,
+      oracle_signature: signature,
+      oracle_frame_hash: frameHash,
+      oracle_confidence: confidence,
+      settlement_tx: receipt.hash,
+      updated_at: new Date().toISOString()
     }).eq('id', supabaseMarketId);
 
-    await supabase.from('bets').update({ status: 'won', settled_at: new Date().toISOString() })
+    await supabase.from('bets')
+      .update({ status: 'won', settled_at: new Date().toISOString() })
       .eq('market_id', supabaseMarketId).eq('side', outcome).eq('status', 'confirmed');
 
-    await supabase.from('bets').update({ status: 'lost', settled_at: new Date().toISOString() })
+    await supabase.from('bets')
+      .update({ status: 'lost', settled_at: new Date().toISOString() })
       .eq('market_id', supabaseMarketId).neq('side', outcome).eq('status', 'confirmed');
 
-    console.log(`[ORACLE] Market resolved: ${supabaseMarketId} → ${outcome} | tx: ${receipt.hash}`);
+    console.log(`[ORACLE] Market resolved: ${supabaseMarketId} to ${outcome} | tx: ${receipt.hash}`);
     res.json({ success: true, outcome, tx: receipt.hash, signature });
   } catch (err) {
     console.error('[ORACLE] Resolve error:', err);
@@ -154,20 +164,68 @@ app.post('/webhook/sync-streams', async (req, res) => {
   if (!verifyWebhookSecret(req)) return res.status(401).json({ error: 'Unauthorised' });
 
   const { streams } = req.body;
-  if (!streams || !Array.isArray(streams)) return res.status(400).json({ error: 'Missing streams array' });
+  if (!streams || !Array.isArray(streams)) {
+    return res.status(400).json({ error: 'Missing streams array' });
+  }
 
   try {
-    await supabase.from('streams').update({ is_live: false }).neq('id', '00000000-0000-0000-0000-000000000000');
+    await supabase.from('streams')
+      .update({ is_live: false })
+      .neq('id', '00000000-0000-0000-0000-000000000000');
 
     for (const stream of streams) {
       const cat = stream.category || '';
-      const gameCategory =
-        ['valorant', 'counter-strike', 'apex', 'overwatch', 'call-of-duty'].some(g => cat.includes(g)) ? 'fps' :
-        ['fifa', 'ea-sports', 'nba-2k', 'rocket-league', 'madden'].some(g => cat.includes(g)) ? 'sports' :
-        ['just-chatting', 'irl', 'talk'].some(g => cat.includes(g)) ? 'irl' : 'other';
+      let gameCategory = 'other';
+      if (['valorant', 'counter-strike', 'apex', 'overwatch', 'call-of-duty'].some(g => cat.includes(g))) {
+        gameCategory = 'fps';
+      } else if (['fifa', 'ea-sports', 'nba-2k', 'rocket-league', 'madden'].some(g => cat.includes(g))) {
+        gameCategory = 'sports';
+      } else if (['just-chatting', 'irl', 'talk'].some(g => cat.includes(g))) {
+        gameCategory = 'irl';
+      }
 
       await supabase.from('streams').upsert({
         platform: 'kick',
         stream_key: stream.channel,
         game_category: gameCategory,
-        game_title: stream.title || stream.category_
+        game_title: stream.title || stream.category_name || 'Live Stream',
+        is_live: true,
+        viewer_count: stream.viewers || 0,
+        started_at: new Date().toISOString()
+      }, { onConflict: 'stream_key' });
+    }
+
+    console.log(`[ORACLE] Synced ${streams.length} live streams`);
+    res.json({ success: true, synced: streams.length });
+  } catch (err) {
+    console.error('[ORACLE] Stream sync error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+setInterval(async () => {
+  const { data: expiredMarkets } = await supabase
+    .from('markets')
+    .select('id, contract_market_id')
+    .in('status', ['open', 'locked'])
+    .lt('auto_void_at', new Date().toISOString());
+
+  for (const market of (expiredMarkets || [])) {
+    try {
+      const tx = await vault.voidMarket(market.contract_market_id);
+      await tx.wait();
+      await supabase.from('markets')
+        .update({ status: 'voided', updated_at: new Date().toISOString() })
+        .eq('id', market.id);
+      console.log(`[ORACLE] Auto-voided market: ${market.id}`);
+    } catch (err) {
+      console.error(`[ORACLE] Failed to void ${market.id}:`, err.message);
+    }
+  }
+}, 2 * 60 * 1000);
+
+app.listen(PORT, () => {
+  console.log(`[ORACLE] Pulse Oracle running on :${PORT}`);
+  console.log(`[ORACLE] Signer: ${oracleWallet.address}`);
+  console.log(`[ORACLE] Vault: ${VAULT_CONTRACT_ADDRESS}`);
+});
