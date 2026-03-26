@@ -1,65 +1,36 @@
 /**
- * PULSE PROTOCOL — Stream Detector (Node.js)
- * Analysiert Kick Streams mit Groq Vision und erstellt Märkte
+ * PULSE PROTOCOL — Stream Detector v2 (No ffmpeg needed)
+ * Nutzt Kick API + Groq Text um Events zu simulieren
+ * Kein Frame-Capture nötig — analysiert Stream-Metadaten
  */
 
 const https = require('https')
 const http = require('http')
 const crypto = require('crypto')
-const { execSync } = require('child_process')
 
 const ORACLE_URL = process.env.ORACLE_URL || 'http://localhost:3001'
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || 'dev-secret'
 const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
-const FRAME_INTERVAL = parseInt(process.env.FRAME_INTERVAL || '30') * 1000
+const FRAME_INTERVAL = parseInt(process.env.FRAME_INTERVAL || '60') * 1000
 
 const STREAMS = [
-  {
-    stream_id: '11111111-1111-1111-1111-111111111111',
-    streamer_name: 'xQc',
-    streamer_wallet: '0x0000000000000000000000000000000000000000',
-    channel: 'xqc',
-    game_category: 'irl'
-  },
-  {
-    stream_id: '22222222-2222-2222-2222-222222222222',
-    streamer_name: 'Trainwreckstv',
-    streamer_wallet: '0x0000000000000000000000000000000000000000',
-    channel: 'trainwreckstv',
-    game_category: 'irl'
-  },
-  {
-    stream_id: '44444444-4444-4444-4444-444444444444',
-    streamer_name: 'Buddha',
-    streamer_wallet: '0x0000000000000000000000000000000000000000',
-    channel: 'buddha',
-    game_category: 'fps'
-  }
+  { stream_id: '11111111-1111-1111-1111-111111111111', streamer_name: 'xQc', streamer_wallet: '0x0000000000000000000000000000000000000000', channel: 'xqc', game_category: 'irl' },
+  { stream_id: '22222222-2222-2222-2222-222222222222', streamer_name: 'Trainwreckstv', streamer_wallet: '0x0000000000000000000000000000000000000000', channel: 'trainwreckstv', game_category: 'irl' },
+  { stream_id: '44444444-4444-4444-4444-444444444444', streamer_name: 'Buddha', streamer_wallet: '0x0000000000000000000000000000000000000000', channel: 'buddha', game_category: 'fps' }
 ]
-
-const CATEGORY_PROMPTS = {
-  fps: `Analyze this FPS gaming stream screenshot. Look for clutch situations, round wins/losses, kill feed spikes.
-Respond ONLY with JSON: {"event_detected": true/false, "event_type": "clutch|win|loss|kill|none", "market_title": "Will [streamer] clutch this?", "confidence": 0.0-1.0}`,
-  irl: `Analyze this IRL stream screenshot. Look for debates, emotional reactions, donation goals, controversial moments.
-Respond ONLY with JSON: {"event_detected": true/false, "event_type": "debate_outcome|reaction|donation_goal|none", "market_title": "Will [streamer] win this debate?", "confidence": 0.0-1.0}`,
-  sports: `Analyze this sports stream screenshot. Look for near-goals, penalties, score changes.
-Respond ONLY with JSON: {"event_detected": true/false, "event_type": "goal|win|loss|penalty|none", "market_title": "Will [streamer] score?", "confidence": 0.0-1.0}`
-}
 
 async function fetchJson(url, options, body) {
   return new Promise((resolve, reject) => {
     const isHttps = url.startsWith('https')
     const lib = isHttps ? https : http
     const urlObj = new URL(url)
-    
     const reqOptions = {
       hostname: urlObj.hostname,
       port: urlObj.port || (isHttps ? 443 : 80),
       path: urlObj.pathname + urlObj.search,
       method: options.method || 'GET',
-      headers: options.headers || {}
+      headers: { 'User-Agent': 'Mozilla/5.0', ...(options.headers || {}) }
     }
-    
     const req = lib.request(reqOptions, (res) => {
       let data = ''
       res.on('data', chunk => data += chunk)
@@ -68,34 +39,58 @@ async function fetchJson(url, options, body) {
         catch (e) { resolve({ status: res.statusCode, data }) }
       })
     })
-    
     req.on('error', reject)
+    req.setTimeout(10000, () => { req.destroy(); reject(new Error('Timeout')) })
     if (body) req.write(JSON.stringify(body))
     req.end()
   })
 }
 
-async function captureKickFrame(channel) {
+async function getKickStreamInfo(channel) {
   try {
-    // Try to get frame via ffmpeg
-    const output = execSync(
-      `ffmpeg -i "https://kickcdn-stb.b-cdn.net/hls/${channel}/index.m3u8" -vframes 1 -f image2 -vcodec mjpeg -loglevel error -t 5 pipe:1`,
-      { encoding: 'buffer', timeout: 15000, maxBuffer: 5 * 1024 * 1024 }
-    )
-    if (output && output.length > 0) {
-      return output.toString('base64')
+    const result = await fetchJson(`https://kick.com/api/v2/channels/${channel}`, {
+      headers: { 'Accept': 'application/json', 'Referer': 'https://kick.com' }
+    })
+    if (result.status === 200 && result.data) {
+      const data = result.data
+      return {
+        isLive: !!data.livestream,
+        title: data.livestream?.session_title || '',
+        category: data.livestream?.categories?.[0]?.name || '',
+        viewers: data.livestream?.viewer_count || 0,
+        chatMessages: [] 
+      }
     }
   } catch (e) {
-    console.log(`[DETECTOR] ffmpeg failed for ${channel}: ${e.message.substring(0, 100)}`)
+    console.log(`[DETECTOR] Kick API failed for ${channel}: ${e.message}`)
   }
   return null
 }
 
-async function analyzeWithGroq(frameB64, channel, category) {
+async function generateMarketWithGroq(stream, streamInfo) {
   if (!GROQ_API_KEY) return null
-  
-  const prompt = (CATEGORY_PROMPTS[category] || CATEGORY_PROMPTS.irl).replace(/\[streamer\]/g, channel)
-  
+
+  const prompt = `You are an AI that creates prediction markets for live streaming events.
+
+Streamer: ${stream.channel}
+Stream title: "${streamInfo.title}"
+Category: ${streamInfo.game_category}
+Viewers: ${streamInfo.viewers}
+
+Based on this stream info, create ONE interesting binary prediction market question that viewers would want to bet on right now.
+
+The question should be:
+- Answerable within 60 seconds
+- Related to what might happen in the stream
+- Exciting and relevant
+
+Respond ONLY with JSON (no other text):
+{
+  "event_type": "clutch|win|loss|goal|reaction|debate_outcome|donation_goal",
+  "market_title": "Will [specific question]?",
+  "confidence": 0.85
+}`
+
   try {
     const result = await fetchJson(
       'https://api.groq.com/openai/v1/chat/completions',
@@ -107,25 +102,22 @@ async function analyzeWithGroq(frameB64, channel, category) {
         }
       },
       {
-        model: 'llama-3.2-11b-vision-preview',
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${frameB64}` } },
-            { type: 'text', text: prompt }
-          ]
-        }],
+        model: 'llama-3.3-70b-versatile',
+        messages: [{ role: 'user', content: prompt }],
         max_tokens: 150,
-        temperature: 0.1
+        temperature: 0.7
       }
     )
-    
+
     if (result.status === 200) {
       const content = result.data.choices[0].message.content
-      const match = content.match(/\{.*\}/s)
-      if (match) return JSON.parse(match[0])
+      const match = content.match(/\{[\s\S]*\}/)
+      if (match) {
+        const parsed = JSON.parse(match[0])
+        return parsed
+      }
     } else {
-      console.log(`[GROQ] Error ${result.status}`)
+      console.log(`[GROQ] Error ${result.status}: ${JSON.stringify(result.data).substring(0, 200)}`)
     }
   } catch (e) {
     console.log(`[GROQ] Failed: ${e.message}`)
@@ -143,23 +135,16 @@ async function fireMarketCreation(stream, event) {
     marketTitle: event.market_title,
     bettingWindowSeconds: 60,
     frameHash: crypto.randomBytes(32).toString('hex'),
-    rawDetection: { source: 'groq_vision', channel: stream.channel },
+    rawDetection: { source: 'groq_text', channel: stream.channel },
     category: stream.game_category
   }
 
   try {
     const result = await fetchJson(
       `${ORACLE_URL}/webhook/event-detected`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-pulse-secret': WEBHOOK_SECRET
-        }
-      },
+      { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-pulse-secret': WEBHOOK_SECRET } },
       payload
     )
-    
     if (result.status === 200) {
       console.log(`[DETECTOR] ✅ Market created: ${event.market_title}`)
     } else {
@@ -176,34 +161,38 @@ async function monitorStream(stream) {
 
   while (true) {
     await new Promise(r => setTimeout(r, FRAME_INTERVAL))
-    
+
     const now = Date.now()
     const cooldownOk = (now - lastMarketTs) > 90000
 
-    if (cooldownOk) {
-      console.log(`[DETECTOR] 📸 Capturing frame from ${stream.channel}...`)
-      const frameB64 = await captureKickFrame(stream.channel)
+    if (!cooldownOk) continue
 
-      if (frameB64) {
-        console.log(`[DETECTOR] 🧠 Analyzing with Groq Vision...`)
-        const result = await analyzeWithGroq(frameB64, stream.channel, stream.game_category)
+    console.log(`[DETECTOR] 📡 Checking stream: ${stream.channel}...`)
+    const streamInfo = await getKickStreamInfo(stream.channel)
 
-        if (result && result.event_detected && result.confidence > 0.75) {
-          console.log(`[DETECTOR] 🎯 Event: ${result.market_title} (${Math.round(result.confidence * 100)}%)`)
-          await fireMarketCreation(stream, result)
-          lastMarketTs = now
-        } else {
-          console.log(`[DETECTOR] 💤 No event on ${stream.channel}`)
-        }
-      } else {
-        console.log(`[DETECTOR] ⚠️  Could not capture frame from ${stream.channel}`)
-      }
+    if (!streamInfo || !streamInfo.isLive) {
+      console.log(`[DETECTOR] 💤 ${stream.channel} is not live`)
+      continue
+    }
+
+    console.log(`[DETECTOR] 🟢 ${stream.channel} is LIVE (${streamInfo.viewers} viewers) - "${streamInfo.title}"`)
+    console.log(`[DETECTOR] 🧠 Generating market with Groq...`)
+
+    const event = await generateMarketWithGroq(stream, streamInfo)
+
+    if (event && event.market_title) {
+      console.log(`[DETECTOR] 🎯 Market: ${event.market_title}`)
+      await fireMarketCreation(stream, event)
+      lastMarketTs = now
+    } else {
+      console.log(`[DETECTOR] ⚠️  Could not generate market for ${stream.channel}`)
     }
   }
 }
 
-console.log('[DETECTOR] 🚀 Pulse Detector starting (Node.js)...')
-console.log(`[DETECTOR] Monitoring ${STREAMS.length} streams, interval: ${FRAME_INTERVAL/1000}s`)
+console.log('[DETECTOR] 🚀 Pulse Detector v2 starting...')
+console.log(`[DETECTOR] Oracle: ${ORACLE_URL}`)
+console.log(`[DETECTOR] Interval: ${FRAME_INTERVAL/1000}s`)
 
 if (!GROQ_API_KEY) {
   console.log('[DETECTOR] ❌ GROQ_API_KEY not set!')
