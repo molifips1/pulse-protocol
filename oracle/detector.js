@@ -164,7 +164,7 @@ async function fireMarketCreation(channel, streamInfo, event) {
     eventType: event.event_type,
     confidence: event.confidence,
     marketTitle: event.market_title,
-    bettingWindowSeconds: 60,
+    bettingWindowSeconds: 300,
     frameHash: crypto.randomBytes(32).toString('hex'),
     rawDetection: { source: 'groq_v4', channel, viewers: streamInfo.viewers },
     category: gameCategory
