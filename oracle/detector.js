@@ -9,6 +9,9 @@ const https = require('https')
 const http = require('http')
 const crypto = require('crypto')
 
+// In-memory cache of live streamers (updated each mainLoop)
+let liveStreamersCache = []
+
 const ORACLE_URL = process.env.ORACLE_URL || 'http://localhost:3001'
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || 'dev-secret'
 const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
@@ -329,11 +332,13 @@ async function mainLoop() {
 
   if (liveStreamers.length === 0) {
     console.log('[DETECTOR] No streamers live right now')
+    liveStreamersCache = []
     return
   }
 
   // Sort by viewers
   liveStreamers.sort((a, b) => (b.viewers || 0) - (a.viewers || 0))
+  liveStreamersCache = liveStreamers.slice(0, 10).map(s => ({ channel: s.channel, viewers: s.viewers || 0 }))
   console.log(`[DETECTOR] ${liveStreamers.length} streamers live:`)
   liveStreamers.slice(0, 5).forEach(s => console.log(`  - ${s.channel} (${s.viewers} viewers)`))
 
@@ -402,3 +407,20 @@ setInterval(mainLoop, CHECK_INTERVAL)
 
 // Resolution loop: check every 30 seconds for markets past their closing time
 setInterval(resolveExpiredMarkets, 30 * 1000)
+
+// Simple HTTP server so Railway keeps the service alive and exposes live streamers
+const PORT = parseInt(process.env.PORT || '3002')
+http.createServer((req, res) => {
+  if (req.url === '/live-streamers' && req.method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' })
+    res.end(JSON.stringify({ streamers: liveStreamersCache }))
+  } else if (req.url === '/health') {
+    res.writeHead(200)
+    res.end('ok')
+  } else {
+    res.writeHead(404)
+    res.end()
+  }
+}).listen(PORT, () => {
+  console.log(`[DETECTOR] HTTP server on :${PORT}`)
+})
