@@ -8,6 +8,9 @@
 const https = require('https')
 const http = require('http')
 const crypto = require('crypto')
+const { execSync } = require('child_process')
+const fs = require('fs')
+const path = require('path')
 
 // In-memory cache of live streamers (updated each mainLoop)
 let liveStreamersCache = []
@@ -15,6 +18,7 @@ let liveStreamersCache = []
 const ORACLE_URL = process.env.ORACLE_URL || 'http://localhost:3001'
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || 'dev-secret'
 const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || ''
 const CHECK_INTERVAL = parseInt(process.env.CHECK_INTERVAL || '60') * 1000
 const MARKET_COOLDOWN = 90000
 
@@ -94,7 +98,9 @@ async function checkIfLive(channel) {
           category: d.livestream.categories?.[0]?.slug || 'other',
           category_name: d.livestream.categories?.[0]?.name || 'Live Stream',
           viewers: d.livestream.viewer_count || 0,
-          streamer_name: d.user?.username || channel
+          streamer_name: d.user?.username || channel,
+          playbackUrl: d.playback_url || null,
+          thumbnail: d.livestream.thumbnail?.src || `https://stream.kick.com/thumbnails/channels/${d.id}/screenshot.jpg`
         }
       }
     }
@@ -110,6 +116,102 @@ function getGameCategory(kickCategory) {
   if (['fifa', 'ea-sports', 'nba-2k', 'rocket-league', 'madden', 'football'].some(g => cat.includes(g))) return 'sports'
   if (['just-chatting', 'irl', 'talk', 'slots', 'casino', 'poker', 'gambling'].some(g => cat.includes(g))) return 'irl'
   return 'other'
+}
+
+// Grab a single frame from the stream using ffmpeg
+function grabStreamFrame(playbackUrl, channel) {
+  try {
+    const outPath = path.join('/tmp', `${channel}_frame.jpg`)
+    execSync(
+      `ffmpeg -y -i "${playbackUrl}" -vframes 1 -q:v 2 -vf "scale=640:-1" "${outPath}" 2>/dev/null`,
+      { timeout: 15000 }
+    )
+    if (fs.existsSync(outPath)) {
+      const data = fs.readFileSync(outPath)
+      fs.unlinkSync(outPath)
+      return data.toString('base64')
+    }
+  } catch (e) {
+    // ffmpeg failed or timed out
+  }
+  return null
+}
+
+// Download thumbnail as base64
+async function fetchThumbnailBase64(url) {
+  try {
+    return new Promise((resolve) => {
+      const lib = url.startsWith('https') ? https : http
+      const req = lib.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (res) => {
+        const chunks = []
+        res.on('data', c => chunks.push(c))
+        res.on('end', () => resolve(Buffer.concat(chunks).toString('base64')))
+      })
+      req.on('error', () => resolve(null))
+      req.setTimeout(8000, () => { req.destroy(); resolve(null) })
+    })
+  } catch { return null }
+}
+
+// Generate market using Claude Vision — sees what's actually on screen
+async function generateMarketWithVision(channel, streamInfo) {
+  if (!ANTHROPIC_API_KEY) return null
+
+  // Try ffmpeg frame first, then thumbnail fallback
+  let imageBase64 = streamInfo.playbackUrl ? grabStreamFrame(streamInfo.playbackUrl, channel) : null
+  if (!imageBase64 && streamInfo.thumbnail) {
+    imageBase64 = await fetchThumbnailBase64(streamInfo.thumbnail)
+  }
+  if (!imageBase64) return null
+
+  const prompt = `You are watching a live casino/gambling stream on Kick.com.
+Streamer: ${streamInfo.streamer_name} | Title: "${streamInfo.title}" | Viewers: ${streamInfo.viewers}
+
+Look at this stream screenshot and create ONE specific yes/no prediction market that resolves in 5 minutes.
+Be SPECIFIC about what you see: the slot game name, bet amount, multiplier, game being played, etc.
+Examples: "Will [game] hit above 10x in next 5 mins?", "Will streamer change to a new slot game?", "Will [streamer] win on [specific game] they're playing?"
+
+Respond ONLY with JSON (no markdown, no explanation):
+{"market_title":"Will ...?","event_type":"win_event","verification_type":"win_event","confidence":0.55,"threshold":${streamInfo.viewers}}`
+
+  try {
+    const result = await fetchJson(
+      'https://api.anthropic.com/v1/messages',
+      {
+        method: 'POST',
+        headers: {
+          'x-api-key': ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json'
+        }
+      },
+      {
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 150,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: imageBase64 } },
+            { type: 'text', text: prompt }
+          ]
+        }]
+      }
+    )
+    if (result.status === 200) {
+      const content = result.data.content?.[0]?.text || ''
+      const match = content.match(/\{[\s\S]*?\}/)
+      if (match) {
+        const parsed = JSON.parse(match[0])
+        console.log(`[VISION] Generated for ${channel}: ${parsed.market_title}`)
+        return parsed
+      }
+    } else {
+      console.log(`[VISION] API error ${result.status}: ${JSON.stringify(result.data).slice(0, 100)}`)
+    }
+  } catch (e) {
+    console.log(`[VISION] Failed: ${e.message}`)
+  }
+  return null
 }
 
 // Check Supabase for existing open markets for this channel to prevent duplicates
@@ -389,7 +491,11 @@ async function mainLoop() {
     }
 
     console.log(`[DETECTOR] Generating market for ${streamer.channel}...`)
-    const event = await generateMarketWithGroq(streamer.channel, streamer)
+
+    // Try vision-based market generation first (sees actual stream content)
+    let event = await generateMarketWithVision(streamer.channel, streamer)
+    // Fall back to Groq text-only if vision fails or not configured
+    if (!event) event = await generateMarketWithGroq(streamer.channel, streamer)
 
     if (event && event.market_title) {
       console.log(`[DETECTOR] ${event.market_title}`)
