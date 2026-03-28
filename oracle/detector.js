@@ -100,7 +100,7 @@ async function checkIfLive(channel) {
           viewers: d.livestream.viewer_count || 0,
           streamer_name: d.user?.username || channel,
           playbackUrl: d.playback_url || null,
-          thumbnail: d.livestream.thumbnail?.src || `https://stream.kick.com/thumbnails/channels/${d.id}/screenshot.jpg`
+          thumbnail: d.livestream.thumbnail?.url || null
         }
       }
     }
@@ -157,11 +157,9 @@ async function fetchThumbnailBase64(url) {
 async function generateMarketWithVision(channel, streamInfo) {
   if (!ANTHROPIC_API_KEY) return null
 
-  // Try ffmpeg frame first, then thumbnail fallback
-  let imageBase64 = streamInfo.playbackUrl ? grabStreamFrame(streamInfo.playbackUrl, channel) : null
-  if (!imageBase64 && streamInfo.thumbnail) {
-    imageBase64 = await fetchThumbnailBase64(streamInfo.thumbnail)
-  }
+  // Fetch live thumbnail from Kick (updated every few seconds)
+  if (!streamInfo.thumbnail) return null
+  const imageBase64 = await fetchThumbnailBase64(streamInfo.thumbnail)
   if (!imageBase64) return null
 
   const prompt = `You are watching a live casino/gambling stream on Kick.com.
@@ -191,7 +189,7 @@ Respond ONLY with JSON (no markdown, no explanation):
         messages: [{
           role: 'user',
           content: [
-            { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: imageBase64 } },
+            { type: 'image', source: { type: 'base64', media_type: 'image/webp', data: imageBase64 } },
             { type: 'text', text: prompt }
           ]
         }]
