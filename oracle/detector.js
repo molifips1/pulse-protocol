@@ -22,16 +22,22 @@ const SUPABASE_URL = process.env.SUPABASE_URL || ''
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || ''
 
 const STREAMERS = [
-  'haddzy', 'trainwreckstv', 'roshtein', 'xqc', 'adinross',
-  'mellstroy475', 'xposed', 'classybeef', 'stevewilldoit', 'syztmz',
-  'ac7ionman', 'westcol', 'ilyaselmaliki', 'szymool', 'scurrows',
-  'lobanjicaa', 'teufeurs', 'casinodaddy', 'deuceace', 'vondice',
-  'mitchjones', 'elzeein', 'corinnakopf', 'cheesur', 'taour',
-  'tyceno', 'caseoh', 'bougassaa', 'nahoule82k', 'vodkafunky',
-  '7idan7777', 'mathematicien', 'paymoneywubby', 'butisito', 'zonagemelosoficial',
-  'lospollosTV', 'letsgiveItaspin', 'ngslot', 'striker6x6', 'rombears',
-  'real_bazzi', 'hunterowner', 'kingkulbik', 'sniff', 'capatob',
-  'jarttu84', 'snutz', 'andymilonakis', 'snikwins', 'gtasty',
+  // Top casino streamers
+  'trainwreckstv', 'roshtein', 'haddzy', 'xposed', 'classybeef',
+  'casinodaddy', 'jarttu84', 'stevewilldoit', 'elzeein', 'cheesur',
+  'westcol', 'ac7ionman', 'deuceace', 'vondice', 'syztmz',
+  'taour', 'tyceno', 'capatob', 'snutz', 'ilyaselmaliki',
+  'mellstroy475', 'adinross', 'caseoh', 'ngslot', 'snikwins',
+  'xqc', 'mitchjones', 'corinnakopf', 'kingkulbik', 'gtasty',
+  // Additional casino streamers
+  'stake', 'stakeus', 'nickslots', 'labowsky', 'bonusking',
+  'fruityslots', 'slotspinner', 'goonbags', 'nicks_slots', 'cg_cgaming',
+  'chipmonkz', 'casino_eric', 'slotlady', 'vegaslow', 'mrvegas',
+  'david_labowsky', 'bonanzas', 'spintwix', 'slotsfighter', 'casinogrounds',
+  'szymool', 'scurrows', 'lobanjicaa', 'teufeurs', 'bougassaa',
+  'nahoule82k', 'vodkafunky', '7idan7777', 'mathematicien', 'paymoneywubby',
+  'butisito', 'zonagemelosoficial', 'lospollosTV', 'letsgiveItaspin', 'striker6x6',
+  'rombears', 'real_bazzi', 'hunterowner', 'sniff', 'andymilonakis',
   'orangemorange'
 ]
 

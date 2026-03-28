@@ -13,6 +13,9 @@ const KNOWN_STREAMERS = [
   'bougassaa','nahoule82k','vodkafunky','7idan7777','mathematicien','paymoneywubby',
   'butisito','zonagemelosoficial','lospollosTV','letsgiveItaspin','striker6x6','rombears',
   'real_bazzi','hunterowner','sniff','andymilonakis','orangemorange',
+  'stake','stakeus','nickslots','labowsky','bonusking','fruityslots','slotspinner',
+  'goonbags','nicks_slots','cg_cgaming','chipmonkz','casino_eric','slotlady',
+  'vegaslow','mrvegas','david_labowsky','bonanzas','spintwix','slotsfighter','casinogrounds',
 ]
 
 function getStreamerFromTitle(title: string): string | null {
