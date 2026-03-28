@@ -11,6 +11,7 @@ const crypto = require('crypto')
 const { execSync } = require('child_process')
 const fs = require('fs')
 const path = require('path')
+const WebSocket = require('ws')
 
 // In-memory cache of live streamers (updated each mainLoop)
 let liveStreamersCache = []
@@ -49,8 +50,82 @@ const STREAMERS = [
 
 const marketCooldowns = new Map()
 
-// Track open markets pending resolution: marketId -> { supabaseMarketId, contractMarketId, closesAt, channel, title, eventType, confidence }
+// Track open markets pending resolution
 const pendingMarkets = new Map()
+
+// Chat monitors: marketId -> { messages: string[], ws: WebSocket }
+const chatMonitors = new Map()
+const PUSHER_KEY = '32cbd69e4b950bf97679'
+
+function startChatMonitor(marketId, chatRoomId) {
+  if (!chatRoomId) return
+  const messages = []
+  try {
+    const ws = new WebSocket(
+      `wss://ws-us2.pusher.com/app/${PUSHER_KEY}?protocol=7&client=js&version=7.2.0&flash=false`,
+      { headers: { 'Origin': 'https://kick.com' } }
+    )
+    chatMonitors.set(marketId, { messages, ws })
+
+    ws.on('open', () => {
+      ws.send(JSON.stringify({ event: 'pusher:subscribe', data: { auth: '', channel: `chatrooms.${chatRoomId}.v2` } }))
+      console.log(`[CHAT] Monitoring chatroom ${chatRoomId} for market ${marketId}`)
+    })
+    ws.on('message', (raw) => {
+      try {
+        const msg = JSON.parse(raw)
+        if (msg.event === 'App\\Events\\ChatMessageEvent') {
+          const d = JSON.parse(msg.data)
+          if (d.content) messages.push(d.content)
+        }
+      } catch (e) {}
+    })
+    ws.on('error', () => {})
+    ws.on('close', () => {})
+  } catch (e) {
+    console.log(`[CHAT] Connect failed: ${e.message}`)
+  }
+}
+
+function stopChatMonitor(marketId) {
+  const monitor = chatMonitors.get(marketId)
+  if (monitor) {
+    try { monitor.ws.close() } catch (e) {}
+    chatMonitors.delete(marketId)
+  }
+}
+
+function analyzeChatMessages(messages, eventType) {
+  if (!messages || messages.length === 0) return null
+  const text = messages.join(' ')
+
+  if (eventType === 'big_win' || eventType === 'multiplier') {
+    // Extract multiplier numbers from chat (e.g. "500x!!", "1000x")
+    const multMatches = [...text.matchAll(/(\d+)\s*x/gi)]
+    const maxMult = multMatches.reduce((m, r) => Math.max(m, parseInt(r[1])), 0)
+    const hasWinWords = /big\s*win|jackpot|insane|crazy|omg|holy|pogchamp|pog|letsgo|lets\s*go|!!!|monkaS/i.test(text)
+    if (maxMult >= 50 || (hasWinWords && messages.length >= 15)) {
+      return { outcome: 'yes', reasoning: `Chat: max ${maxMult}x seen, ${messages.length} msgs, win words: ${hasWinWords}` }
+    }
+    return { outcome: 'no', reasoning: `Chat: max ${maxMult}x, ${messages.length} msgs — no big win detected` }
+  }
+
+  if (eventType === 'bonus') {
+    const hasBonus = /bonus|free\s*spin|freespin|feature|triggered|bonus\s*round/i.test(text)
+    if (hasBonus && messages.length >= 10) {
+      return { outcome: 'yes', reasoning: `Chat: bonus keywords detected in ${messages.length} messages` }
+    }
+    return { outcome: 'no', reasoning: `Chat: no bonus keywords in ${messages.length} messages` }
+  }
+
+  if (eventType === 'viewer_spike') {
+    // High chat activity = viewer excitement
+    const outcome = messages.length >= 40 ? 'yes' : 'no'
+    return { outcome, reasoning: `Chat activity: ${messages.length} messages in 5 mins` }
+  }
+
+  return null // game_change etc — fall back to API
+}
 
 async function fetchJson(url, options = {}, body = null) {
   return new Promise((resolve, reject) => {
@@ -100,7 +175,8 @@ async function checkIfLive(channel) {
           viewers: d.livestream.viewer_count || 0,
           streamer_name: d.user?.username || channel,
           playbackUrl: d.playback_url || null,
-          thumbnail: d.livestream.thumbnail?.url || null
+          thumbnail: d.livestream.thumbnail?.url || null,
+          chatRoomId: d.chatroom?.id || null
         }
       }
     }
@@ -375,7 +451,7 @@ async function resolveMarket(market, currentStreamInfo) {
   return { outcome, reasoning: `Viewers ${threshold} → ${currentStreamInfo.viewers} (${viewerChange.toFixed(1)}%)` }
 }
 
-async function fireMarketCreation(channel, streamInfo, event) {
+async function fireMarketCreation(channel, streamInfo, event, chatRoomId) {
   const gameCategory = getGameCategory(streamInfo.category)
   const bettingWindowSeconds = 300
   const payload = {
@@ -399,8 +475,9 @@ async function fireMarketCreation(channel, streamInfo, event) {
     if (result.status === 200 && result.data.marketId) {
       console.log(`[DETECTOR] Market created: ${event.market_title}`)
       const closesAt = Date.now() + bettingWindowSeconds * 1000
-      pendingMarkets.set(result.data.marketId, {
-        supabaseMarketId: result.data.marketId,
+      const marketId = result.data.marketId
+      pendingMarkets.set(marketId, {
+        supabaseMarketId: marketId,
         contractMarketId: result.data.contractMarketId,
         closesAt,
         channel,
@@ -411,6 +488,8 @@ async function fireMarketCreation(channel, streamInfo, event) {
         threshold: event.threshold || streamInfo.viewers,
         snapshotTitle: streamInfo.title,
       })
+      // Start listening to chat for this market
+      startChatMonitor(marketId, chatRoomId)
       return true
     } else {
       console.log(`[DETECTOR] Oracle error: ${JSON.stringify(result.data)}`)
@@ -437,9 +516,17 @@ async function resolveExpiredMarkets() {
 
   for (const [id, market] of toResolve) {
     try {
-      // Re-fetch live stream data to verify outcome
-      const streamInfo = await checkIfLive(market.channel)
-      const resolution = await resolveMarket(market, streamInfo)
+      // Try chat-based resolution first (most accurate)
+      const monitor = chatMonitors.get(id)
+      let resolution = monitor ? analyzeChatMessages(monitor.messages, market.eventType) : null
+      stopChatMonitor(id)
+
+      // Fall back to Kick API comparison if chat unavailable
+      if (!resolution) {
+        const streamInfo = await checkIfLive(market.channel)
+        resolution = await resolveMarket(market, streamInfo)
+      }
+
       if (!resolution) {
         pendingMarkets.delete(id)
         continue
@@ -547,7 +634,7 @@ async function mainLoop() {
 
     if (event && event.market_title) {
       console.log(`[DETECTOR] ${event.market_title}`)
-      const success = await fireMarketCreation(streamer.channel, streamer, event)
+      const success = await fireMarketCreation(streamer.channel, streamer, event, streamer.chatRoomId)
       if (success) marketCooldowns.set(streamer.channel, Date.now())
     }
 
