@@ -17,10 +17,14 @@ export async function GET(req: NextRequest) {
     'ngslot','jarttu84','snikwins','gtasty','ac7ionman','westcol','elzeein'
   ]
 
+  // Only show markets created in the last 15 minutes to filter out stale old ones
+  const cutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString()
+
   let query = supabase
     .from('markets')
     .select('*, streams(*, streamers(*))')
     .eq('status', status)
+    .gte('created_at', cutoff)
     .order('created_at', { ascending: false })
     .limit(100)
 
