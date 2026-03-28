@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract, useConfig } from 'wagmi'
 import { simulateContract } from '@wagmi/core'
-import { parseUnits, formatUnits } from 'viem'
+import { parseUnits, formatUnits, maxUint256 } from 'viem'
 import { supabase, type Market } from '../lib/supabase'
 import { VAULT_ADDRESS, USDC_ADDRESS, VAULT_ABI, ERC20_ABI } from '../lib/wagmi'
 
@@ -36,7 +36,8 @@ export function BetModal({ market, side, odds, onClose, onSuccess }: Props) {
     args: address ? [address, VAULT_ADDRESS] : undefined,
   })
 
-  const needsApproval = allowance !== undefined && amountRaw > 0n && allowance < amountRaw
+  // If allowance is undefined (still loading) treat as 0 — always require approval
+  const needsApproval = amountRaw > 0n && (allowance === undefined || allowance < amountRaw)
 
   // Approve USDC
   const { writeContract: approve, data: approveTxHash } = useWriteContract()
@@ -109,7 +110,7 @@ export function BetModal({ market, side, odds, onClose, onSuccess }: Props) {
           address: USDC_ADDRESS,
           abi: ERC20_ABI,
           functionName: 'approve',
-          args: [VAULT_ADDRESS, amountRaw],
+          args: [VAULT_ADDRESS, maxUint256], // approve max so user only signs once
         })
       } else {
         setStep('bet')
@@ -129,6 +130,7 @@ export function BetModal({ market, side, odds, onClose, onSuccess }: Props) {
         abi: VAULT_ABI,
         functionName: 'placeBet',
         args: [market.contract_market_id as `0x${string}`, side === 'yes', amountRaw],
+        account: address,
       })
       contractBetIdRef.current = betId as string
       placeBet(request)
