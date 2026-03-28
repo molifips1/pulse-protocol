@@ -11,12 +11,18 @@ export async function GET(req: NextRequest) {
   const category = searchParams.get('category')
   const status = searchParams.get('status') || 'open'
 
+  const KNOWN_STREAMERS = [
+    'trainwreckstv','haddzy','roshtein','xqc','adinross','mellstroy475','xposed',
+    'classybeef','stevewilldoit','casinodaddy','cheesur','caseoh','kingkulbik',
+    'ngslot','jarttu84','snikwins','gtasty','ac7ionman','westcol','elzeein'
+  ]
+
   let query = supabase
     .from('markets')
     .select('*, streams(*, streamers(*))')
     .eq('status', status)
     .order('created_at', { ascending: false })
-    .limit(30)
+    .limit(100)
 
   if (category && category !== 'all') {
     query = query.eq('category', category)
@@ -25,20 +31,22 @@ export async function GET(req: NextRequest) {
   const { data: markets, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Fetch live streams to enrich markets that are missing stream_id
-  const { data: liveStreams } = await supabase
-    .from('streams')
-    .select('*')
-    .eq('is_live', true)
+  // Deduplicate: keep only the most recent market per streamer
+  const seen = new Set<string>()
+  const deduped = (markets || []).filter(market => {
+    const lower = market.title.toLowerCase()
+    const streamer = KNOWN_STREAMERS.find(s => lower.includes(s.toLowerCase())) || market.title.split(' ')[1]?.toLowerCase() || 'unknown'
+    if (seen.has(streamer)) return false
+    seen.add(streamer)
+    return true
+  })
 
-  const enriched = (markets || []).map(market => {
+  // Enrich markets missing stream_id by matching streamer name in title
+  const enriched = deduped.map(market => {
     if (market.streams) return market
-    if (!liveStreams?.length) return market
-    // Match by checking if the stream_key appears in the market title
-    const match = liveStreams.find(s =>
-      market.title.toLowerCase().includes(s.stream_key.toLowerCase())
-    )
-    return match ? { ...market, streams: match } : market
+    const lower = market.title.toLowerCase()
+    const streamKey = KNOWN_STREAMERS.find(s => lower.includes(s.toLowerCase())) || null
+    return streamKey ? { ...market, streams: { stream_key: streamKey } } : market
   })
 
   return NextResponse.json({ markets: enriched })
