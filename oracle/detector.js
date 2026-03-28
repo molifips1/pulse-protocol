@@ -320,38 +320,59 @@ Respond ONLY with JSON (no markdown):
 }
 
 async function resolveMarket(market, currentStreamInfo) {
-  const verificationType = market.verificationType || 'viewer_count'
+  const eventType = market.eventType || 'viewer_spike'
   const threshold = market.threshold || 0
+  const snapshotTitle = market.snapshotTitle || ''
 
-  // If stream went offline, resolve NO
+  // Stream went offline → NO
   if (!currentStreamInfo || !currentStreamInfo.isLive) {
     return { outcome: 'no', reasoning: 'Stream went offline' }
   }
 
-  if (verificationType === 'viewer_count') {
-    // YES if viewer count increased by 5% or more (excitement/win happened)
-    const increase = ((currentStreamInfo.viewers - threshold) / (threshold || 1)) * 100
-    const outcome = increase >= 5 ? 'yes' : 'no'
-    return { outcome, reasoning: `Viewers: ${threshold} → ${currentStreamInfo.viewers} (${increase.toFixed(1)}% change)` }
+  const currentTitle = (currentStreamInfo.title || '').toLowerCase()
+  const titleChanged = currentStreamInfo.title !== snapshotTitle
+  const viewerChange = ((currentStreamInfo.viewers - threshold) / (threshold || 1)) * 100
+
+  const WIN_KEYWORDS = ['win', 'won', 'jackpot', 'mega', 'epic', 'insane', 'huge', 'big', '🔥', '💰', '🎰', 'x ', '×']
+  const titleHasWin = WIN_KEYWORDS.some(k => currentTitle.includes(k))
+
+  if (eventType === 'big_win' || eventType === 'multiplier') {
+    // YES if title changed AND contains win keywords (streamer updated title after big hit)
+    // OR viewer count spiked 15%+ (excitement from big win)
+    const outcome = (titleChanged && titleHasWin) || viewerChange >= 15 ? 'yes' : 'no'
+    return { outcome, reasoning: `Title changed: ${titleChanged}, win keywords: ${titleHasWin}, viewer change: ${viewerChange.toFixed(1)}%` }
   }
 
-  if (verificationType === 'title_change') {
-    // YES if stream title changed
-    const changed = currentStreamInfo.title !== market.snapshotTitle
-    return { outcome: changed ? 'yes' : 'no', reasoning: changed ? `Title changed to: "${currentStreamInfo.title}"` : 'Title unchanged' }
+  if (eventType === 'bonus') {
+    // YES if viewer count spiked 8%+ (bonus rounds cause excitement/chat activity)
+    // OR title changed (streamer often updates title when bonus hits)
+    const outcome = viewerChange >= 8 || titleChanged ? 'yes' : 'no'
+    return { outcome, reasoning: `Viewer change: ${viewerChange.toFixed(1)}%, title changed: ${titleChanged}` }
   }
 
-  if (verificationType === 'win_event') {
-    // YES if title contains win-related keywords
-    const title = (currentStreamInfo.title || '').toLowerCase()
-    const winKeywords = ['win', 'won', 'jackpot', 'big', 'hit', 'boom', '🎰', '💰', '🔥']
-    const hasWin = winKeywords.some(k => title.includes(k))
-    return { outcome: hasWin ? 'yes' : 'no', reasoning: `Stream title: "${currentStreamInfo.title}"` }
+  if (eventType === 'game_change') {
+    // YES if title changed significantly (new game name likely in title)
+    const outcome = titleChanged ? 'yes' : 'no'
+    return { outcome, reasoning: titleChanged ? `Title changed to: "${currentStreamInfo.title}"` : 'Title unchanged' }
   }
 
-  // Fallback: viewer spike of any kind
-  const outcome = currentStreamInfo.viewers > threshold ? 'yes' : 'no'
-  return { outcome, reasoning: `Viewers ${threshold} → ${currentStreamInfo.viewers}` }
+  if (eventType === 'viewer_spike') {
+    // YES if viewers increased 10%+
+    const outcome = viewerChange >= 10 ? 'yes' : 'no'
+    return { outcome, reasoning: `Viewers: ${threshold} → ${currentStreamInfo.viewers} (${viewerChange.toFixed(1)}%)` }
+  }
+
+  // Legacy verification types
+  if (market.verificationType === 'title_change') {
+    return { outcome: titleChanged ? 'yes' : 'no', reasoning: titleChanged ? `Title changed to: "${currentStreamInfo.title}"` : 'Title unchanged' }
+  }
+  if (market.verificationType === 'win_event') {
+    return { outcome: titleHasWin ? 'yes' : 'no', reasoning: `Title: "${currentStreamInfo.title}"` }
+  }
+
+  // Fallback
+  const outcome = viewerChange >= 5 ? 'yes' : 'no'
+  return { outcome, reasoning: `Viewers ${threshold} → ${currentStreamInfo.viewers} (${viewerChange.toFixed(1)}%)` }
 }
 
 async function fireMarketCreation(channel, streamInfo, event) {
