@@ -38,6 +38,8 @@ const STREAMERS = [
   'nahoule82k', 'vodkafunky', '7idan7777', 'mathematicien', 'paymoneywubby',
   'butisito', 'zonagemelosoficial', 'lospollosTV', 'letsgiveItaspin', 'striker6x6',
   'rombears', 'real_bazzi', 'hunterowner', 'sniff', 'andymilonakis',
+  'SweetFlips', 'zubarefff45', 'wesbtw', 'BlondeRabbit', 'ARTEMGRAPH',
+  'Native_Stream_192', 'AFERIStT', 'generalqw77',
   'orangemorange'
 ]
 

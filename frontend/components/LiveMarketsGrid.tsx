@@ -16,6 +16,8 @@ const KNOWN_STREAMERS = [
   'stake','stakeus','nickslots','labowsky','bonusking','fruityslots','slotspinner',
   'goonbags','nicks_slots','cg_cgaming','chipmonkz','casino_eric','slotlady',
   'vegaslow','mrvegas','david_labowsky','bonanzas','spintwix','slotsfighter','casinogrounds',
+  'sweetflips','zubarefff45','wesbtw','blonderabbit','artemgraph',
+  'native_stream_192','aferist','generalqw77',
 ]
 
 function getStreamerFromTitle(title: string): string | null {
