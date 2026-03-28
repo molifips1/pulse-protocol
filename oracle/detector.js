@@ -337,20 +337,20 @@ async function mainLoop() {
   console.log(`[DETECTOR] ${liveStreamers.length} streamers live:`)
   liveStreamers.slice(0, 5).forEach(s => console.log(`  - ${s.channel} (${s.viewers} viewers)`))
 
-  // Sync top 5 to Supabase
+  // Sync top 10 to Supabase
   try {
     await fetchJson(
       `${ORACLE_URL}/webhook/sync-streams`,
       { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-pulse-secret': WEBHOOK_SECRET } },
-      { streams: liveStreamers.slice(0, 5) }
+      { streams: liveStreamers.slice(0, 10) }
     )
     console.log('[DETECTOR] Streams synced to Supabase')
   } catch (e) {
     console.log(`[DETECTOR] Sync failed: ${e.message}`)
   }
 
-  // Generate markets for top 5 live streamers
-  for (const streamer of liveStreamers.slice(0, 5)) {
+  // Generate markets for top 10 live streamers
+  for (const streamer of liveStreamers.slice(0, 10)) {
     const lastMarket = marketCooldowns.get(streamer.channel) || 0
     const cooldownOk = (Date.now() - lastMarket) > MARKET_COOLDOWN
 
