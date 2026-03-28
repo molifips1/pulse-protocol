@@ -41,14 +41,9 @@ export function LiveMarketsGrid() {
   const [activeStreamer, setActiveStreamer] = useState<string | null>(null)
 
   const fetchData = async () => {
-    // Fetch live streams (top 10 by viewers)
-    const { data: streams } = await supabase
-      .from('streams')
-      .select('stream_key, viewer_count')
-      .eq('is_live', true)
-      .order('viewer_count', { ascending: false })
-      .limit(10)
-    setLiveStreams(streams || [])
+    // Fetch live streams via server route (bypasses RLS)
+    const streamsRes = await fetch('/api/streams').then(r => r.json()).catch(() => ({ streams: [] }))
+    setLiveStreams(streamsRes.streams || [])
 
     // Fetch open markets
     let query = supabase
@@ -67,9 +62,10 @@ export function LiveMarketsGrid() {
     fetchData()
     const channel = supabase.channel('markets-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'markets' }, fetchData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'streams' }, fetchData)
       .subscribe()
-    return () => { supabase.removeChannel(channel) }
+    // Refresh live streams every 60s (oracle updates every ~60s)
+    const streamPoll = setInterval(fetchData, 60_000)
+    return () => { supabase.removeChannel(channel); clearInterval(streamPoll) }
   }, [filter])
 
   // Build streamer map from markets
