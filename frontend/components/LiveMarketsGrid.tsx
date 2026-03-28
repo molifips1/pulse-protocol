@@ -9,11 +9,21 @@ const KNOWN_STREAMERS = [
   'classybeef','stevewilldoit','casinodaddy','cheesur','caseoh','kingkulbik',
   'ngslot','jarttu84','snikwins','gtasty','ac7ionman','westcol','elzeein',
   'syztmz','mitchjones','corinnakopf','taour','tyceno','capatob','snutz',
+  'ilyaselmaliki','szymool','scurrows','lobanjicaa','teufeurs','deuceace','vondice',
+  'bougassaa','nahoule82k','vodkafunky','7idan7777','mathematicien','paymoneywubby',
+  'butisito','zonagemelosoficial','lospollosTV','letsgiveItaspin','striker6x6','rombears',
+  'real_bazzi','hunterowner','sniff','andymilonakis','orangemorange',
 ]
 
 function getStreamerFromTitle(title: string): string | null {
   const lower = title.toLowerCase()
-  return KNOWN_STREAMERS.find(s => lower.includes(s.toLowerCase())) || null
+  // First try exact match from known list
+  const known = KNOWN_STREAMERS.find(s => lower.includes(s.toLowerCase()))
+  if (known) return known.toLowerCase()
+  // Fallback: extract name from "Will [name]'s ..." or "Will [name] ..."
+  const match = title.match(/^Will ([^'\s]+)(?:'s|\s)/i)
+  if (match) return match[1].toLowerCase()
+  return null
 }
 
 const FILTERS = [
