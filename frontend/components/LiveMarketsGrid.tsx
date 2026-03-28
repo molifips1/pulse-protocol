@@ -35,15 +35,15 @@ const FILTERS = [
 
 export function LiveMarketsGrid() {
   const [markets, setMarkets] = useState<Market[]>([])
-  const [liveStreams, setLiveStreams] = useState<{ stream_key: string; viewer_count: number }[]>([])
+  const [liveStreams, setLiveStreams] = useState<{ channel: string; viewers: number }[]>([])
   const [filter, setFilter] = useState('all')
   const [loading, setLoading] = useState(true)
   const [activeStreamer, setActiveStreamer] = useState<string | null>(null)
 
   const fetchData = async () => {
-    // Fetch live streams via server route (bypasses RLS)
-    const streamsRes = await fetch('/api/streams').then(r => r.json()).catch(() => ({ streams: [] }))
-    setLiveStreams(streamsRes.streams || [])
+    // Fetch live streamers directly from Kick (bypasses broken streams table)
+    const streamsRes = await fetch('/api/live-streamers').then(r => r.json()).catch(() => ({ streamers: [] }))
+    setLiveStreams(streamsRes.streamers || [])
 
     // Fetch open markets
     let query = supabase
@@ -81,7 +81,7 @@ export function LiveMarketsGrid() {
   const allChannels: string[] = []
   const seen = new Set<string>()
   for (const s of liveStreams) {
-    if (!seen.has(s.stream_key)) { allChannels.push(s.stream_key); seen.add(s.stream_key) }
+    if (!seen.has(s.channel)) { allChannels.push(s.channel); seen.add(s.channel) }
   }
   for (const key of streamerMap.keys()) {
     if (!seen.has(key)) { allChannels.push(key); seen.add(key) }
