@@ -1,6 +1,7 @@
 'use client'
-import { useState, useEffect } from 'react'
-import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from 'wagmi'
+import { useState, useEffect, useRef } from 'react'
+import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract, useConfig } from 'wagmi'
+import { simulateContract } from '@wagmi/core'
 import { parseUnits, formatUnits } from 'viem'
 import { supabase, type Market } from '../lib/supabase'
 import { VAULT_ADDRESS, USDC_ADDRESS, VAULT_ABI, ERC20_ABI } from '../lib/wagmi'
@@ -17,9 +18,11 @@ type Step = 'input' | 'approve' | 'bet' | 'confirming' | 'done' | 'error'
 
 export function BetModal({ market, side, odds, onClose, onSuccess }: Props) {
   const { address } = useAccount()
+  const config = useConfig()
   const [amount, setAmount] = useState('')
   const [step, setStep] = useState<Step>('input')
   const [errorMsg, setErrorMsg] = useState('')
+  const contractBetIdRef = useRef<string | null>(null)
 
   const amountUsdc = parseFloat(amount) || 0
   const amountRaw = amount ? parseUnits(amount, 6) : 0n
@@ -83,7 +86,8 @@ export function BetModal({ market, side, odds, onClose, onSuccess }: Props) {
         odds_at_placement: odds,
         potential_payout_usdc: parseFloat(potentialPayout),
         status: 'confirmed',
-        tx_hash: txHash
+        tx_hash: txHash,
+        contract_bet_id: contractBetIdRef.current,
       })
 
       setStep('done')
@@ -117,14 +121,22 @@ export function BetModal({ market, side, odds, onClose, onSuccess }: Props) {
     }
   }
 
-  const placeBetNow = () => {
-    placeBet({
-      address: VAULT_ADDRESS,
-      abi: VAULT_ABI,
-      functionName: 'placeBet',
-      args: [market.contract_market_id as `0x${string}`, side === 'yes', amountRaw],
-    })
-    setStep('confirming')
+  const placeBetNow = async () => {
+    try {
+      // Simulate first to capture the betId return value
+      const { result: betId, request } = await simulateContract(config, {
+        address: VAULT_ADDRESS,
+        abi: VAULT_ABI,
+        functionName: 'placeBet',
+        args: [market.contract_market_id as `0x${string}`, side === 'yes', amountRaw],
+      })
+      contractBetIdRef.current = betId as string
+      placeBet(request)
+      setStep('confirming')
+    } catch (e: any) {
+      setErrorMsg(e.shortMessage || e.message || 'Transaction failed')
+      setStep('error')
+    }
   }
 
   useEffect(() => {
