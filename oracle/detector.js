@@ -349,6 +349,17 @@ async function mainLoop() {
     console.log(`[DETECTOR] Sync failed: ${e.message}`)
   }
 
+  // Update live streamers cache in oracle for frontend
+  try {
+    await fetchJson(
+      `${ORACLE_URL}/webhook/live-streamers-update`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-pulse-secret': WEBHOOK_SECRET } },
+      { streamers: liveStreamers.slice(0, 10).map(s => ({ channel: s.channel, viewers: s.viewers })) }
+    )
+  } catch (e) {
+    // silent
+  }
+
   // Generate markets for top 10 live streamers
   for (const streamer of liveStreamers.slice(0, 10)) {
     const lastMarket = marketCooldowns.get(streamer.channel) || 0

@@ -220,6 +220,17 @@ app.post('/webhook/sync-streams', async (req, res) => {
   }
 });
 
+// Cache of live streamers updated by detector
+let liveStreamersCache = [];
+app.post('/webhook/live-streamers-update', (req, res) => {
+  if (!verifyWebhookSecret(req)) return res.status(401).json({ error: 'Unauthorised' });
+  liveStreamersCache = req.body.streamers || [];
+  res.json({ success: true });
+});
+app.get('/live-streamers', (req, res) => {
+  res.json({ streamers: liveStreamersCache });
+});
+
 setInterval(async () => {
   const { data: expiredMarkets } = await supabase
     .from('markets')
