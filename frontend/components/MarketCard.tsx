@@ -52,7 +52,16 @@ export function MarketCard(props: Props) {
     setBetModal(side)
   }
 
-  const streamKey = market.streams?.stream_key
+  // Derive stream key from streams join, or extract streamer name from market title as fallback
+  const streamKey = market.streams?.stream_key || (() => {
+    const KNOWN_STREAMERS = [
+      'trainwreckstv','haddzy','roshtein','xqc','adinross','mellstroy475','xposed',
+      'classybeef','stevewilldoit','syztmz','ac7ionman','westcol','casinodaddy',
+      'cheesur','caseoh','kingkulbik','ngslot','jarttu84','snikwins','gtasty'
+    ]
+    const lower = market.title.toLowerCase()
+    return KNOWN_STREAMERS.find(s => lower.includes(s.toLowerCase())) || null
+  })()
   const streamerName = market.streams?.streamers?.display_name || streamKey || 'Live Stream'
   const kickUrl = 'https://kick.com/' + streamKey
 
@@ -86,7 +95,7 @@ export function MarketCard(props: Props) {
       {streamKey && (
         <div style={{ position: 'relative', width: '100%', aspectRatio: '16/9', background: '#000' }}>
           <iframe
-            src={'https://player.kick.com/' + streamKey + '?autoplay=true&muted=true'}
+            src={'https://player.kick.com/' + streamKey + '?autoplay=true&muted=true&parent=pulse-protocol1.vercel.app'}
             style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
             allowFullScreen
             allow="autoplay; fullscreen"
