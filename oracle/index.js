@@ -66,7 +66,24 @@ app.post('/webhook/event-detected', async (req, res) => {
     let streamUUID = null;
     const { data: streamRow } = await supabase
       .from('streams').select('id').eq('stream_key', streamId).single();
-    if (streamRow) streamUUID = streamRow.id;
+    if (streamRow) {
+      streamUUID = streamRow.id;
+    } else {
+      // Stream not synced yet — upsert it now so the market has a valid stream_id
+      const { data: newStream } = await supabase
+        .from('streams')
+        .upsert({
+          platform: 'kick',
+          stream_key: streamId,
+          game_category: category || 'other',
+          game_title: 'Live Stream',
+          is_live: true,
+          viewer_count: 0,
+          started_at: new Date().toISOString()
+        }, { onConflict: 'stream_key' })
+        .select('id').single();
+      if (newStream) streamUUID = newStream.id;
+    }
 
     const { data: market, error: dbErr } = await supabase
       .from('markets')
