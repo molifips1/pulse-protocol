@@ -22,7 +22,24 @@ export async function GET(req: NextRequest) {
     query = query.eq('category', category)
   }
 
-  const { data, error } = await query
+  const { data: markets, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ markets: data })
+
+  // Fetch live streams to enrich markets that are missing stream_id
+  const { data: liveStreams } = await supabase
+    .from('streams')
+    .select('*')
+    .eq('is_live', true)
+
+  const enriched = (markets || []).map(market => {
+    if (market.streams) return market
+    if (!liveStreams?.length) return market
+    // Match by checking if the stream_key appears in the market title
+    const match = liveStreams.find(s =>
+      market.title.toLowerCase().includes(s.stream_key.toLowerCase())
+    )
+    return match ? { ...market, streams: match } : market
+  })
+
+  return NextResponse.json({ markets: enriched })
 }
