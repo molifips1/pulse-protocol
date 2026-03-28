@@ -1,7 +1,20 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { supabase, type Market } from '../lib/supabase'
-import { MarketCard } from './MarketCard'
+import { StreamerCard } from './StreamerCard'
+import { StreamerMarketsModal } from './StreamerMarketsModal'
+
+const KNOWN_STREAMERS = [
+  'trainwreckstv','haddzy','roshtein','xqc','adinross','mellstroy475','xposed',
+  'classybeef','stevewilldoit','casinodaddy','cheesur','caseoh','kingkulbik',
+  'ngslot','jarttu84','snikwins','gtasty','ac7ionman','westcol','elzeein',
+  'syztmz','mitchjones','corinnakopf','taour','tyceno','capatob','snutz',
+]
+
+function getStreamerFromTitle(title: string): string | null {
+  const lower = title.toLowerCase()
+  return KNOWN_STREAMERS.find(s => lower.includes(s.toLowerCase())) || null
+}
 
 const FILTERS = [
   { key: 'all', label: 'All' },
@@ -14,6 +27,7 @@ export function LiveMarketsGrid() {
   const [markets, setMarkets] = useState<Market[]>([])
   const [filter, setFilter] = useState('all')
   const [loading, setLoading] = useState(true)
+  const [activeStreamer, setActiveStreamer] = useState<string | null>(null)
 
   const fetchMarkets = async () => {
     let query = supabase
@@ -21,7 +35,7 @@ export function LiveMarketsGrid() {
       .select('*, streams(*, streamers(*))')
       .in('status', ['open', 'locked'])
       .order('created_at', { ascending: false })
-      .limit(20)
+      .limit(100)
 
     if (filter !== 'all') query = query.eq('category', filter)
 
@@ -38,9 +52,21 @@ export function LiveMarketsGrid() {
     return () => { supabase.removeChannel(channel) }
   }, [filter])
 
+  // Group markets by streamer
+  const streamerMap = new Map<string, Market[]>()
+  for (const market of markets) {
+    const streamer = market.streams?.stream_key || getStreamerFromTitle(market.title)
+    if (!streamer) continue
+    if (!streamerMap.has(streamer)) streamerMap.set(streamer, [])
+    streamerMap.get(streamer)!.push(market)
+  }
+  const streamers = Array.from(streamerMap.entries())
+
+  const activeMarkets = activeStreamer ? (streamerMap.get(activeStreamer) || []) : []
+
   return (
     <div>
-      {/* Filter tabs like Polymarket */}
+      {/* Filter tabs */}
       <div style={{
         display: 'flex', gap: '4px', marginBottom: '20px',
         borderBottom: '1px solid #1F2937', paddingBottom: '16px'
@@ -67,20 +93,16 @@ export function LiveMarketsGrid() {
       </div>
 
       {loading ? (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-          gap: '16px'
-        }}>
-          {[...Array(6)].map((_, i) => (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
+          {[...Array(4)].map((_, i) => (
             <div key={i} style={{
-              height: '320px', background: '#111827',
+              height: '280px', background: '#111827',
               border: '1px solid #1F2937', borderRadius: '12px',
               animation: 'pulse 1.5s ease-in-out infinite'
             }} />
           ))}
         </div>
-      ) : markets.length === 0 ? (
+      ) : streamers.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '80px 0' }}>
           <div style={{ fontSize: '48px', marginBottom: '16px' }}>📡</div>
           <p style={{ color: 'white', fontSize: '18px', fontWeight: '600', marginBottom: '8px' }}>
@@ -91,15 +113,25 @@ export function LiveMarketsGrid() {
           </p>
         </div>
       ) : (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-          gap: '16px'
-        }}>
-          {markets.map(market => (
-            <MarketCard key={market.id} market={market} onBetPlaced={fetchMarkets} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
+          {streamers.map(([channel, channelMarkets]) => (
+            <StreamerCard
+              key={channel}
+              channel={channel}
+              markets={channelMarkets}
+              onClick={() => setActiveStreamer(channel)}
+            />
           ))}
         </div>
+      )}
+
+      {activeStreamer && (
+        <StreamerMarketsModal
+          channel={activeStreamer}
+          markets={activeMarkets}
+          onClose={() => setActiveStreamer(null)}
+          onBetPlaced={fetchMarkets}
+        />
       )}
     </div>
   )
