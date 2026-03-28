@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { useAccount } from 'wagmi'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { formatDistanceToNow, isPast } from 'date-fns'
+import { supabase } from '../lib/supabase'
 import { BetModal } from './BetModal'
 
 interface Props {
@@ -12,10 +13,31 @@ interface Props {
   onBetPlaced: () => void
 }
 
-export function StreamerMarketsModal({ channel, markets, onClose, onBetPlaced }: Props) {
+export function StreamerMarketsModal({ channel, markets: initialMarkets, onClose, onBetPlaced }: Props) {
   const { isConnected } = useAccount()
   const { openConnectModal } = useConnectModal()
   const [betModal, setBetModal] = useState<{ market: any; side: 'yes' | 'no'; odds: number } | null>(null)
+  const [markets, setMarkets] = useState(initialMarkets)
+
+  // Fetch fresh market data and subscribe to realtime updates
+  useEffect(() => {
+    const ids = initialMarkets.map(m => m.id)
+    if (!ids.length) return
+
+    const fetchFresh = async () => {
+      const { data } = await supabase
+        .from('markets')
+        .select('*')
+        .in('id', ids)
+      if (data) setMarkets(data)
+    }
+    fetchFresh()
+
+    const ch = supabase.channel('modal-markets')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'markets' }, fetchFresh)
+      .subscribe()
+    return () => { supabase.removeChannel(ch) }
+  }, [initialMarkets.map(m => m.id).join(',')])
 
   // Close on backdrop click
   const handleBackdrop = (e: React.MouseEvent<HTMLDivElement>) => {
