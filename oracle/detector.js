@@ -231,39 +231,64 @@ async function hasOpenMarket(channel) {
   }
 }
 
+// Extract slot/game name from stream title
+function extractGameFromTitle(title) {
+  const t = title.toLowerCase()
+  // Common slot games mentioned in titles
+  const slots = [
+    'sweet bonanza','gates of olympus','big bass','dog house','wanted dead',
+    'mental','fire portals','pragmatic','no limit','hacksaw','push gaming',
+    'jammin jars','reactoonz','book of dead','razor shark','money train',
+    'deadwood','tombstone','san quentin','poison eve','volatile slot',
+    'chaos crew','fat banker','release the kraken','pirots','train of thought',
+    'retrigger','high roller','bonus hunt','bonus buys','bonus round',
+  ]
+  const found = slots.find(s => t.includes(s))
+  if (found) return found
+  // Extract anything after common keywords
+  const m = title.match(/playing\s+([^|!@#]+)/i) || title.match(/\|\s*([^|]{4,30})\s*\|/i)
+  return m ? m[1].trim() : null
+}
+
 async function generateMarketWithGroq(channel, streamInfo) {
   if (!GROQ_API_KEY) return null
 
   const gameCategory = getGameCategory(streamInfo.category)
+  const detectedGame = extractGameFromTitle(streamInfo.title)
 
-  // Generate verifiable market types based on measurable stream data
-  const verifiablePrompts = {
-    irl: `The streamer is playing casino/slots/IRL. Create a market about:
-- viewer count change (e.g. "Will viewer count increase by 5% in the next 5 minutes?")
-- win event (e.g. "Will ${streamInfo.streamer_name} hit a win above $500 in the next 5 minutes?")
-- stream title change (e.g. "Will ${streamInfo.streamer_name}'s stream title change in the next 5 minutes?")`,
-    fps: `The streamer is playing an FPS game. Create a market about:
-- kill/death event measurable from stream context
-- round win/loss
-- viewer count change`,
-    sports: `The streamer is playing a sports game. Create a market about:
-- goal/score event
-- viewer spike (excitement moment)`,
-    other: `Create a market about a measurable stream event in the next 5 minutes.`
+  // Pick a random bet type for variety
+  const betTypes = ['big_win', 'multiplier', 'bonus', 'viewer_spike', 'game_change']
+  const betType = betTypes[Math.floor(Math.random() * betTypes.length)]
+
+  const gameContext = detectedGame
+    ? `The streamer appears to be playing: "${detectedGame}"`
+    : `Stream title: "${streamInfo.title}"`
+
+  const betTypePrompts = {
+    big_win: `Create a market about whether they will hit a BIG WIN (typically 100x+ bet) in the next 5 minutes.`,
+    multiplier: `Create a market about a specific multiplier milestone (e.g. "Will they hit above 50x?", "Will they get a 100x+ multiplier?").`,
+    bonus: `Create a market about whether they will trigger a bonus round / free spins in the next 5 minutes.`,
+    viewer_spike: `Create a market about a viewer count spike — big wins attract viewers. Will viewers increase by 10%+?`,
+    game_change: `Create a market about whether the streamer will switch to a different game/slot in the next 5 minutes.`,
   }
 
-  const prompt = `Create a verifiable yes/no prediction market for this live Kick.com stream.
-The market MUST be something that can be verified by checking the Kick API 5 minutes later.
+  const prompt = `You are generating prediction markets for a live casino stream on Kick.com.
 
-Streamer: ${streamInfo.streamer_name} (@${channel})
-Title: "${streamInfo.title}"
+Streamer: ${streamInfo.streamer_name}
+${gameContext}
 Category: ${streamInfo.category_name}
 Current viewers: ${streamInfo.viewers}
 
-${verifiablePrompts[gameCategory] || verifiablePrompts.other}
+${betTypePrompts[betType]}
+
+Make the market title SPECIFIC and EXCITING. Use the game name if known. Avoid generic phrases.
+Good examples:
+- "Will ${streamInfo.streamer_name} hit 100x+ on Sweet Bonanza in the next 5 mins?"
+- "Will ${streamInfo.streamer_name} trigger Free Spins in the next 5 mins?"
+- "Will ${streamInfo.streamer_name} switch slots in the next 5 mins?"
 
 Respond ONLY with JSON (no markdown):
-{"event_type":"viewer_spike|title_change|big_win|score_event|clutch","market_title":"Will ${streamInfo.streamer_name} [verifiable action] in the next 5 minutes?","confidence":0.5,"verification_type":"viewer_count|title_change|win_event","threshold":${streamInfo.viewers}}`
+{"event_type":"${betType}","market_title":"Will ...?","confidence":0.5,"verification_type":"win_event","threshold":${streamInfo.viewers}}`
 
   try {
     const result = await fetchJson(
@@ -275,14 +300,18 @@ Respond ONLY with JSON (no markdown):
       {
         model: 'llama-3.3-70b-versatile',
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: 120,
-        temperature: 0.8
+        max_tokens: 150,
+        temperature: 0.9
       }
     )
     if (result.status === 200) {
       const content = result.data.choices[0].message.content
       const match = content.match(/\{[\s\S]*?\}/)
-      if (match) return JSON.parse(match[0])
+      if (match) {
+        const parsed = JSON.parse(match[0])
+        console.log(`[GROQ] Generated for ${channel}: ${parsed.market_title}`)
+        return parsed
+      }
     }
   } catch (e) {
     console.log(`[GROQ] Failed: ${e.message}`)
