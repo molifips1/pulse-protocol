@@ -15,6 +15,9 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
 const CHECK_INTERVAL = parseInt(process.env.CHECK_INTERVAL || '60') * 1000
 const MARKET_COOLDOWN = 90000
 
+const SUPABASE_URL = process.env.SUPABASE_URL || ''
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || ''
+
 const STREAMERS = [
   'haddzy', 'trainwreckstv', 'roshtein', 'xqc', 'adinross',
   'mellstroy475', 'xposed', 'classybeef', 'stevewilldoit', 'syztmz',
@@ -98,29 +101,58 @@ function getGameCategory(kickCategory) {
   return 'other'
 }
 
+// Check Supabase for existing open markets for this channel to prevent duplicates
+async function hasOpenMarket(channel) {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return false
+  try {
+    const url = `${SUPABASE_URL}/rest/v1/markets?stream_id=not.is.null&status=eq.open&title=ilike.*${encodeURIComponent(channel)}*&select=id&limit=1`
+    // Use title match as proxy since stream_id linkage is unreliable
+    const titleUrl = `${SUPABASE_URL}/rest/v1/markets?status=in.(open,locked)&title=ilike.*${encodeURIComponent(channel)}*&select=id&limit=1`
+    const result = await fetchJson(titleUrl, {
+      headers: {
+        'apikey': SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`
+      }
+    })
+    return result.status === 200 && Array.isArray(result.data) && result.data.length > 0
+  } catch (e) {
+    return false
+  }
+}
+
 async function generateMarketWithGroq(channel, streamInfo) {
   if (!GROQ_API_KEY) return null
 
   const gameCategory = getGameCategory(streamInfo.category)
-  const categoryContext = {
-    fps: 'FPS game — clutch rounds, kills, deaths, round wins possible.',
-    sports: 'Sports game — goals, saves, penalties, match results possible.',
-    irl: 'IRL/Casino/Just Chatting — big wins, losses, reactions, debates possible.',
-    other: 'Live stream — create an exciting prediction market.'
+
+  // Generate verifiable market types based on measurable stream data
+  const verifiablePrompts = {
+    irl: `The streamer is playing casino/slots/IRL. Create a market about:
+- viewer count change (e.g. "Will viewer count increase by 5% in the next 5 minutes?")
+- win event (e.g. "Will ${streamInfo.streamer_name} hit a win above $500 in the next 5 minutes?")
+- stream title change (e.g. "Will ${streamInfo.streamer_name}'s stream title change in the next 5 minutes?")`,
+    fps: `The streamer is playing an FPS game. Create a market about:
+- kill/death event measurable from stream context
+- round win/loss
+- viewer count change`,
+    sports: `The streamer is playing a sports game. Create a market about:
+- goal/score event
+- viewer spike (excitement moment)`,
+    other: `Create a market about a measurable stream event in the next 5 minutes.`
   }
 
-  const prompt = `Create a prediction market for this live Kick.com stream.
+  const prompt = `Create a verifiable yes/no prediction market for this live Kick.com stream.
+The market MUST be something that can be verified by checking the Kick API 5 minutes later.
 
 Streamer: ${streamInfo.streamer_name} (@${channel})
 Title: "${streamInfo.title}"
 Category: ${streamInfo.category_name}
-Viewers: ${streamInfo.viewers}
-Context: ${categoryContext[gameCategory]}
+Current viewers: ${streamInfo.viewers}
 
-Create ONE exciting yes/no prediction market resolvable in 60 seconds.
+${verifiablePrompts[gameCategory] || verifiablePrompts.other}
 
-Respond ONLY with JSON:
-{"event_type":"clutch|win|loss|goal|reaction|big_win|debate_outcome|other","market_title":"Will ${streamInfo.streamer_name} [action]?","confidence":0.88}`
+Respond ONLY with JSON (no markdown):
+{"event_type":"viewer_spike|title_change|big_win|score_event|clutch","market_title":"Will ${streamInfo.streamer_name} [verifiable action] in the next 5 minutes?","confidence":0.5,"verification_type":"viewer_count|title_change|win_event","threshold":${streamInfo.viewers}}`
 
   try {
     const result = await fetchJson(
@@ -147,51 +179,39 @@ Respond ONLY with JSON:
   return null
 }
 
-async function resolveMarketWithGroq(market, streamInfo) {
-  if (!GROQ_API_KEY) return null
+async function resolveMarket(market, currentStreamInfo) {
+  const verificationType = market.verificationType || 'viewer_count'
+  const threshold = market.threshold || 0
 
-  const stillLive = streamInfo && streamInfo.isLive
-  const prompt = `A prediction market betting window has just closed on a live Kick.com stream.
-
-Market question: "${market.title}"
-Event type: ${market.eventType}
-Original confidence: ${market.confidence}
-Streamer still live: ${stillLive ? 'yes' : 'no (went offline)'}
-${streamInfo && streamInfo.title ? `Current stream title: "${streamInfo.title}"` : ''}
-
-Based on the event type and confidence level, decide if this market resolves YES or NO.
-- For casino/gambling streams, big wins happen roughly ${Math.round(market.confidence * 100)}% of the time.
-- If confidence was above 0.8, lean YES. If below 0.6, lean NO.
-- Add some realistic randomness.
-
-Respond ONLY with JSON: {"outcome":"yes","reasoning":"brief reason"} or {"outcome":"no","reasoning":"brief reason"}`
-
-  try {
-    const result = await fetchJson(
-      'https://api.groq.com/openai/v1/chat/completions',
-      {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' }
-      },
-      {
-        model: 'llama-3.3-70b-versatile',
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 80,
-        temperature: 0.7
-      }
-    )
-    if (result.status === 200) {
-      const content = result.data.choices[0].message.content
-      const match = content.match(/\{[\s\S]*?\}/)
-      if (match) {
-        const parsed = JSON.parse(match[0])
-        if (parsed.outcome === 'yes' || parsed.outcome === 'no') return parsed
-      }
-    }
-  } catch (e) {
-    console.log(`[GROQ] Resolution failed: ${e.message}`)
+  // If stream went offline, resolve NO
+  if (!currentStreamInfo || !currentStreamInfo.isLive) {
+    return { outcome: 'no', reasoning: 'Stream went offline' }
   }
-  return null
+
+  if (verificationType === 'viewer_count') {
+    // YES if viewer count increased by 5% or more (excitement/win happened)
+    const increase = ((currentStreamInfo.viewers - threshold) / (threshold || 1)) * 100
+    const outcome = increase >= 5 ? 'yes' : 'no'
+    return { outcome, reasoning: `Viewers: ${threshold} → ${currentStreamInfo.viewers} (${increase.toFixed(1)}% change)` }
+  }
+
+  if (verificationType === 'title_change') {
+    // YES if stream title changed
+    const changed = currentStreamInfo.title !== market.snapshotTitle
+    return { outcome: changed ? 'yes' : 'no', reasoning: changed ? `Title changed to: "${currentStreamInfo.title}"` : 'Title unchanged' }
+  }
+
+  if (verificationType === 'win_event') {
+    // YES if title contains win-related keywords
+    const title = (currentStreamInfo.title || '').toLowerCase()
+    const winKeywords = ['win', 'won', 'jackpot', 'big', 'hit', 'boom', '🎰', '💰', '🔥']
+    const hasWin = winKeywords.some(k => title.includes(k))
+    return { outcome: hasWin ? 'yes' : 'no', reasoning: `Stream title: "${currentStreamInfo.title}"` }
+  }
+
+  // Fallback: viewer spike of any kind
+  const outcome = currentStreamInfo.viewers > threshold ? 'yes' : 'no'
+  return { outcome, reasoning: `Viewers ${threshold} → ${currentStreamInfo.viewers}` }
 }
 
 async function fireMarketCreation(channel, streamInfo, event) {
@@ -217,7 +237,6 @@ async function fireMarketCreation(channel, streamInfo, event) {
     )
     if (result.status === 200 && result.data.marketId) {
       console.log(`[DETECTOR] Market created: ${event.market_title}`)
-      // Track this market for resolution
       const closesAt = Date.now() + bettingWindowSeconds * 1000
       pendingMarkets.set(result.data.marketId, {
         supabaseMarketId: result.data.marketId,
@@ -226,7 +245,10 @@ async function fireMarketCreation(channel, streamInfo, event) {
         channel,
         title: event.market_title,
         eventType: event.event_type,
-        confidence: event.confidence
+        confidence: event.confidence,
+        verificationType: event.verification_type || 'viewer_count',
+        threshold: event.threshold || streamInfo.viewers,
+        snapshotTitle: streamInfo.title,
       })
       return true
     } else {
@@ -254,13 +276,10 @@ async function resolveExpiredMarkets() {
 
   for (const [id, market] of toResolve) {
     try {
-      // Check if streamer is still live for context
+      // Re-fetch live stream data to verify outcome
       const streamInfo = await checkIfLive(market.channel)
-
-      // Ask Groq for outcome
-      const resolution = await resolveMarketWithGroq(market, streamInfo)
+      const resolution = await resolveMarket(market, streamInfo)
       if (!resolution) {
-        console.log(`[DETECTOR] Groq resolution failed for ${id}, skipping (oracle will auto-void)`)
         pendingMarkets.delete(id)
         continue
       }
@@ -336,6 +355,14 @@ async function mainLoop() {
     const cooldownOk = (Date.now() - lastMarket) > MARKET_COOLDOWN
 
     if (!cooldownOk) continue
+
+    // Check DB for existing open market to prevent duplicates across restarts
+    const alreadyOpen = await hasOpenMarket(streamer.channel)
+    if (alreadyOpen) {
+      console.log(`[DETECTOR] Skipping ${streamer.channel} — market already open`)
+      marketCooldowns.set(streamer.channel, Date.now())
+      continue
+    }
 
     console.log(`[DETECTOR] Generating market for ${streamer.channel}...`)
     const event = await generateMarketWithGroq(streamer.channel, streamer)
