@@ -2,6 +2,7 @@
  * PULSE PROTOCOL — Stream Detector v4
  * Hardcoded list of 50 Kick streamers
  * Checks if live, generates markets with Groq
+ * Resolves expired markets with Groq
  */
 
 const https = require('https')
@@ -29,6 +30,9 @@ const STREAMERS = [
 ]
 
 const marketCooldowns = new Map()
+
+// Track open markets pending resolution: marketId -> { supabaseMarketId, contractMarketId, closesAt, channel, title, eventType, confidence }
+const pendingMarkets = new Map()
 
 async function fetchJson(url, options = {}, body = null) {
   return new Promise((resolve, reject) => {
@@ -143,20 +147,56 @@ Respond ONLY with JSON:
   return null
 }
 
-async function syncStreamToOracle(channel, streamInfo) {
+async function resolveMarketWithGroq(market, streamInfo) {
+  if (!GROQ_API_KEY) return null
+
+  const stillLive = streamInfo && streamInfo.isLive
+  const prompt = `A prediction market betting window has just closed on a live Kick.com stream.
+
+Market question: "${market.title}"
+Event type: ${market.eventType}
+Original confidence: ${market.confidence}
+Streamer still live: ${stillLive ? 'yes' : 'no (went offline)'}
+${streamInfo && streamInfo.title ? `Current stream title: "${streamInfo.title}"` : ''}
+
+Based on the event type and confidence level, decide if this market resolves YES or NO.
+- For casino/gambling streams, big wins happen roughly ${Math.round(market.confidence * 100)}% of the time.
+- If confidence was above 0.8, lean YES. If below 0.6, lean NO.
+- Add some realistic randomness.
+
+Respond ONLY with JSON: {"outcome":"yes","reasoning":"brief reason"} or {"outcome":"no","reasoning":"brief reason"}`
+
   try {
-    await fetchJson(
-      `${ORACLE_URL}/webhook/sync-streams`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-pulse-secret': WEBHOOK_SECRET } },
-      { streams: [{ channel, ...streamInfo }] }
+    const result = await fetchJson(
+      'https://api.groq.com/openai/v1/chat/completions',
+      {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' }
+      },
+      {
+        model: 'llama-3.3-70b-versatile',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 80,
+        temperature: 0.7
+      }
     )
+    if (result.status === 200) {
+      const content = result.data.choices[0].message.content
+      const match = content.match(/\{[\s\S]*?\}/)
+      if (match) {
+        const parsed = JSON.parse(match[0])
+        if (parsed.outcome === 'yes' || parsed.outcome === 'no') return parsed
+      }
+    }
   } catch (e) {
-    console.log(`[DETECTOR] Sync failed: ${e.message}`)
+    console.log(`[GROQ] Resolution failed: ${e.message}`)
   }
+  return null
 }
 
 async function fireMarketCreation(channel, streamInfo, event) {
   const gameCategory = getGameCategory(streamInfo.category)
+  const bettingWindowSeconds = 300
   const payload = {
     streamId: channel,
     streamerId: null,
@@ -164,7 +204,7 @@ async function fireMarketCreation(channel, streamInfo, event) {
     eventType: event.event_type,
     confidence: event.confidence,
     marketTitle: event.market_title,
-    bettingWindowSeconds: 300,
+    bettingWindowSeconds,
     frameHash: crypto.randomBytes(32).toString('hex'),
     rawDetection: { source: 'groq_v4', channel, viewers: streamInfo.viewers },
     category: gameCategory
@@ -175,8 +215,19 @@ async function fireMarketCreation(channel, streamInfo, event) {
       { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-pulse-secret': WEBHOOK_SECRET } },
       payload
     )
-    if (result.status === 200) {
+    if (result.status === 200 && result.data.marketId) {
       console.log(`[DETECTOR] Market created: ${event.market_title}`)
+      // Track this market for resolution
+      const closesAt = Date.now() + bettingWindowSeconds * 1000
+      pendingMarkets.set(result.data.marketId, {
+        supabaseMarketId: result.data.marketId,
+        contractMarketId: result.data.contractMarketId,
+        closesAt,
+        channel,
+        title: event.market_title,
+        eventType: event.event_type,
+        confidence: event.confidence
+      })
       return true
     } else {
       console.log(`[DETECTOR] Oracle error: ${JSON.stringify(result.data)}`)
@@ -185,6 +236,61 @@ async function fireMarketCreation(channel, streamInfo, event) {
     console.log(`[DETECTOR] Webhook failed: ${e.message}`)
   }
   return false
+}
+
+async function resolveExpiredMarkets() {
+  const now = Date.now()
+  const toResolve = []
+
+  for (const [id, market] of pendingMarkets.entries()) {
+    if (now >= market.closesAt) {
+      toResolve.push([id, market])
+    }
+  }
+
+  if (toResolve.length === 0) return
+
+  console.log(`[DETECTOR] Resolving ${toResolve.length} expired market(s)...`)
+
+  for (const [id, market] of toResolve) {
+    try {
+      // Check if streamer is still live for context
+      const streamInfo = await checkIfLive(market.channel)
+
+      // Ask Groq for outcome
+      const resolution = await resolveMarketWithGroq(market, streamInfo)
+      if (!resolution) {
+        console.log(`[DETECTOR] Groq resolution failed for ${id}, skipping (oracle will auto-void)`)
+        pendingMarkets.delete(id)
+        continue
+      }
+
+      console.log(`[DETECTOR] Resolving market ${market.supabaseMarketId} → ${resolution.outcome.toUpperCase()} (${resolution.reasoning})`)
+
+      const result = await fetchJson(
+        `${ORACLE_URL}/webhook/resolve-market`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-pulse-secret': WEBHOOK_SECRET } },
+        {
+          contractMarketId: market.contractMarketId,
+          supabaseMarketId: market.supabaseMarketId,
+          outcome: resolution.outcome,
+          confidence: market.confidence,
+          frameHash: crypto.randomBytes(32).toString('hex')
+        }
+      )
+
+      if (result.status === 200) {
+        console.log(`[DETECTOR] Market resolved: ${market.title} → ${resolution.outcome.toUpperCase()}`)
+      } else {
+        console.log(`[DETECTOR] Resolution webhook error: ${JSON.stringify(result.data)}`)
+      }
+    } catch (e) {
+      console.log(`[DETECTOR] Resolution error for ${id}: ${e.message}`)
+    }
+
+    pendingMarkets.delete(id)
+    await new Promise(r => setTimeout(r, 500))
+  }
 }
 
 async function mainLoop() {
@@ -255,3 +361,6 @@ if (!GROQ_API_KEY) {
 
 mainLoop()
 setInterval(mainLoop, CHECK_INTERVAL)
+
+// Resolution loop: check every 30 seconds for markets past their closing time
+setInterval(resolveExpiredMarkets, 30 * 1000)
