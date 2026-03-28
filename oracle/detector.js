@@ -60,7 +60,7 @@ async function fetchJson(url, options = {}, body = null) {
       })
     })
     req.on('error', reject)
-    req.setTimeout(10000, () => { req.destroy(); reject(new Error('Timeout')) })
+    req.setTimeout(20000, () => { req.destroy(); reject(new Error('Timeout')) })
     if (body) req.write(JSON.stringify(body))
     req.end()
   })
@@ -346,7 +346,7 @@ async function mainLoop() {
       if (success) marketCooldowns.set(streamer.channel, Date.now())
     }
 
-    await new Promise(r => setTimeout(r, 1000))
+    await new Promise(r => setTimeout(r, 3000))
   }
 }
 
