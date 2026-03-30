@@ -62,25 +62,12 @@ export default function MarketPage() {
   useEffect(() => {
     if (!selectedMarket) return
     const go = async () => {
-      const { data: bets } = await supabase
-        .from('bets').select('*').eq('market_id', selectedMarket.id)
-        .order('created_at', { ascending: false }).limit(25)
-      setActivity(bets || [])
-
-      if (address) {
-        const { data: myBets } = await supabase
-          .from('bets').select('*').eq('market_id', selectedMarket.id)
-          .eq('wallet_address', address.toLowerCase()).order('created_at', { ascending: false })
-        setPositions(myBets || [])
-      }
-
-      const { data: allBets } = await supabase
-        .from('bets').select('wallet_address, amount_usdc').eq('market_id', selectedMarket.id)
-      if (allBets) {
-        const map = new Map<string, number>()
-        for (const b of allBets) map.set(b.wallet_address, (map.get(b.wallet_address) || 0) + b.amount_usdc)
-        setTopHolders([...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([addr, total]) => ({ addr, total })))
-      }
+      const params = new URLSearchParams({ marketId: selectedMarket.id })
+      if (address) params.set('wallet', address.toLowerCase())
+      const res = await fetch(`/api/market-bets?${params}`).then(r => r.json()).catch(() => ({}))
+      setActivity(res.activity || [])
+      setPositions(res.myBets || [])
+      setTopHolders(res.topHolders || [])
     }
     go()
   }, [selectedMarket?.id, address, dataRefresh])
