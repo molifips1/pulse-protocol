@@ -21,7 +21,7 @@ const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || 'dev-secret'
 const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || ''
 const CHECK_INTERVAL = parseInt(process.env.CHECK_INTERVAL || '60') * 1000
-const MARKET_COOLDOWN = 90000
+const MARKET_COOLDOWN = 30000
 
 const SUPABASE_URL = process.env.SUPABASE_URL || ''
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || ''
@@ -292,11 +292,18 @@ Respond ONLY with JSON (no markdown, no explanation):
 async function countOpenMarkets(channel) {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return 0
   try {
-    const titleUrl = `${SUPABASE_URL}/rest/v1/markets?status=in.(open,locked)&title=ilike.*${encodeURIComponent(channel)}*&select=id`
-    const result = await fetchJson(titleUrl, {
+    // Query via streams join — accurate regardless of market title wording
+    const url = `${SUPABASE_URL}/rest/v1/markets?select=id,streams!inner(stream_key)&status=in.(open,locked)&streams.stream_key=eq.${encodeURIComponent(channel.toLowerCase())}`
+    const result = await fetchJson(url, {
       headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}` }
     })
-    return result.status === 200 && Array.isArray(result.data) ? result.data.length : 0
+    if (result.status === 200 && Array.isArray(result.data)) return result.data.length
+    // Fallback: title search
+    const fallback = await fetchJson(
+      `${SUPABASE_URL}/rest/v1/markets?status=in.(open,locked)&title=ilike.*${encodeURIComponent(channel)}*&select=id`,
+      { headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}` } }
+    )
+    return fallback.status === 200 && Array.isArray(fallback.data) ? fallback.data.length : 0
   } catch (e) {
     return 0
   }
@@ -565,7 +572,7 @@ async function mainLoop() {
 
   // Sort by viewers
   liveStreamers.sort((a, b) => (b.viewers || 0) - (a.viewers || 0))
-  liveStreamersCache = liveStreamers.slice(0, 10).map(s => ({
+  liveStreamersCache = liveStreamers.map(s => ({
     channel: s.channel,
     viewers: s.viewers || 0,
     thumbnail: s.thumbnail || null,
@@ -578,7 +585,7 @@ async function mainLoop() {
     await fetchJson(
       `${ORACLE_URL}/webhook/sync-streams`,
       { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-pulse-secret': WEBHOOK_SECRET } },
-      { streams: liveStreamers.slice(0, 10) }
+      { streams: liveStreamers }
     )
     console.log('[DETECTOR] Streams synced to Supabase')
   } catch (e) {
@@ -590,14 +597,14 @@ async function mainLoop() {
     await fetchJson(
       `${ORACLE_URL}/webhook/live-streamers-update`,
       { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-pulse-secret': WEBHOOK_SECRET } },
-      { streamers: liveStreamers.slice(0, 10).map(s => ({ channel: s.channel, viewers: s.viewers, thumbnail: s.thumbnail || null })) }
+      { streamers: liveStreamers.map(s => ({ channel: s.channel, viewers: s.viewers, thumbnail: s.thumbnail || null })) }
     )
   } catch (e) {
     // silent
   }
 
-  // Generate markets for top 10 live streamers
-  for (const streamer of liveStreamers.slice(0, 10)) {
+  // Generate markets for all live streamers
+  for (const streamer of liveStreamers) {
     const lastMarket = marketCooldowns.get(streamer.channel) || 0
     const cooldownOk = (Date.now() - lastMarket) > MARKET_COOLDOWN
     if (!cooldownOk) continue
@@ -606,7 +613,6 @@ async function mainLoop() {
     const openCount = await countOpenMarkets(streamer.channel)
     if (openCount >= 3) {
       console.log(`[DETECTOR] Skipping ${streamer.channel} — ${openCount} markets already open`)
-      marketCooldowns.set(streamer.channel, Date.now())
       continue
     }
 
@@ -616,18 +622,21 @@ async function mainLoop() {
 
     console.log(`[DETECTOR] Generating ${typesToGenerate.length} market(s) for ${streamer.channel}...`)
 
+    let anyCreated = false
     for (const betType of typesToGenerate) {
       let event = await generateMarketWithVision(streamer.channel, streamer)
       if (!event) event = await generateMarketWithGroq(streamer.channel, streamer, betType)
 
       if (event && event.market_title) {
         console.log(`[DETECTOR] [${betType}] ${event.market_title}`)
-        await fireMarketCreation(streamer.channel, streamer, event, streamer.chatRoomId)
+        const created = await fireMarketCreation(streamer.channel, streamer, event, streamer.chatRoomId)
+        if (created) anyCreated = true
       }
       await new Promise(r => setTimeout(r, 2000))
     }
 
-    marketCooldowns.set(streamer.channel, Date.now())
+    // Only set cooldown if we actually created markets — don't penalise API failures
+    if (anyCreated) marketCooldowns.set(streamer.channel, Date.now())
     await new Promise(r => setTimeout(r, 1000))
   }
 }
