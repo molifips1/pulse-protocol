@@ -15,38 +15,35 @@ export async function POST(req: NextRequest) {
   }
 
   // Verify market is still open
-  const { data: market } = await supabase
+  const { data: market, error: marketErr } = await supabase
     .from('markets')
-    .select('status, closes_at')
+    .select('status, closes_at, total_yes_usdc, total_no_usdc')
     .eq('id', marketId)
     .single()
 
+  if (marketErr) return NextResponse.json({ error: marketErr.message }, { status: 500 })
   if (!market || market.status !== 'open') {
-    return NextResponse.json({ error: 'Market not open' }, { status: 400 })
+    return NextResponse.json({ error: `Market not open (status: ${market?.status})` }, { status: 400 })
   }
-
   if (new Date(market.closes_at) < new Date()) {
     return NextResponse.json({ error: 'Betting window closed' }, { status: 400 })
   }
 
   // Upsert user
-  await supabase.from('users').upsert({
-    wallet_address: walletAddress.toLowerCase(),
-    last_seen_at: new Date().toISOString()
-  }, { onConflict: 'wallet_address' })
-
+  await supabase.from('users').upsert(
+    { wallet_address: walletAddress.toLowerCase(), last_seen_at: new Date().toISOString() },
+    { onConflict: 'wallet_address' }
+  )
   const { data: user } = await supabase
-    .from('users')
-    .select('id, is_restricted')
-    .eq('wallet_address', walletAddress.toLowerCase())
-    .single()
+    .from('users').select('id, is_restricted').eq('wallet_address', walletAddress.toLowerCase()).single()
 
   if (user?.is_restricted) {
     return NextResponse.json({ error: 'Access restricted in your jurisdiction' }, { status: 403 })
   }
 
-  // Record bet
-  const { data: bet, error } = await supabase.from('bets').insert({
+  // Insert bet — try with optional columns first, fall back to core columns only
+  let bet: any = null
+  const coreFields = {
     market_id: marketId,
     user_id: user?.id,
     wallet_address: walletAddress.toLowerCase(),
@@ -56,23 +53,31 @@ export async function POST(req: NextRequest) {
     potential_payout_usdc: potentialPayout,
     status: 'confirmed',
     tx_hash: txHash,
-    contract_bet_id: contractBetId || null,
-    placed_at: new Date().toISOString(),
-  }).select().single()
-
-  if (error) {
-    if (error.code === '23505') {
-      return NextResponse.json({ error: 'Duplicate transaction' }, { status: 409 })
-    }
-    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // Update market liquidity totals
-  const { data: freshMarket } = await supabase
-    .from('markets').select('total_yes_usdc, total_no_usdc').eq('id', marketId).single()
+  const { data: betFull, error: errFull } = await supabase
+    .from('bets')
+    .insert({ ...coreFields, contract_bet_id: contractBetId || null, placed_at: new Date().toISOString() })
+    .select().single()
+
+  if (errFull) {
+    // Optional columns may not exist — retry with core fields only
+    console.error('[api/bet] full insert failed:', errFull.message, '— retrying with core fields')
+    const { data: betCore, error: errCore } = await supabase
+      .from('bets').insert(coreFields).select().single()
+    if (errCore) {
+      if (errCore.code === '23505') return NextResponse.json({ error: 'Duplicate transaction' }, { status: 409 })
+      return NextResponse.json({ error: errCore.message }, { status: 500 })
+    }
+    bet = betCore
+  } else {
+    bet = betFull
+  }
+
+  // Update market pool totals
   const poolUpdate = side === 'yes'
-    ? { total_yes_usdc: (freshMarket?.total_yes_usdc || 0) + amountUsdc }
-    : { total_no_usdc: (freshMarket?.total_no_usdc || 0) + amountUsdc }
+    ? { total_yes_usdc: (market.total_yes_usdc || 0) + amountUsdc }
+    : { total_no_usdc: (market.total_no_usdc || 0) + amountUsdc }
   await supabase.from('markets').update(poolUpdate).eq('id', marketId)
 
   return NextResponse.json({ success: true, betId: bet.id })
