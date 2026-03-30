@@ -616,6 +616,7 @@ async function mainLoop() {
     channel: s.channel,
     viewers: s.viewers || 0,
     thumbnail: s.thumbnail || null,
+    category: getStreamContentType(s),
   }))
   console.log(`[DETECTOR] ${liveStreamers.length} streamers live:`)
   liveStreamers.slice(0, 5).forEach(s => console.log(`  - ${s.channel} (${s.viewers} viewers)`))
