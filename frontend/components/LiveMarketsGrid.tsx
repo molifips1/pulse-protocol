@@ -44,9 +44,12 @@ export function LiveMarketsGrid() {
     streamerMap.get(streamer)!.push(market)
   }
 
-  // Only show channels that have casino markets
+  // Show live streamers first, then any additional channels with casino markets
   const allChannels: string[] = []
   const seen = new Set<string>()
+  for (const s of liveStreams) {
+    if (!seen.has(s.channel)) { allChannels.push(s.channel); seen.add(s.channel) }
+  }
   for (const key of streamerMap.keys()) {
     if (!seen.has(key)) { allChannels.push(key); seen.add(key) }
   }
