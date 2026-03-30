@@ -123,8 +123,8 @@ export function BetWidget({ market, expired, onSuccess }: Props) {
     return (
       <div style={{ textAlign: 'center', padding: '28px 0' }}>
         <div style={{ fontSize: '36px', marginBottom: '8px' }}>✅</div>
-        <p style={{ color: '#059669', fontWeight: '700', fontSize: '15px', margin: '0 0 4px' }}>Bet Confirmed</p>
-        <p style={{ color: '#6B7280', fontSize: '12px', fontFamily: 'var(--font-mono)', margin: 0 }}>
+        <p style={{ color: 'var(--green)', fontWeight: '700', fontSize: '15px', margin: '0 0 4px' }}>Bet Confirmed</p>
+        <p style={{ color: 'var(--muted)', fontSize: '12px', fontFamily: 'var(--font-mono)', margin: 0 }}>
           ${amountUsdc.toFixed(2)} on {betSide.toUpperCase()} · up to ${potentialPayout}
         </p>
       </div>
@@ -136,13 +136,13 @@ export function BetWidget({ market, expired, onSuccess }: Props) {
       <div style={{ textAlign: 'center', padding: '28px 0' }}>
         <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
         <div style={{
-          width: '32px', height: '32px', border: '2px solid #E5E7EB', borderTopColor: '#6366F1',
+          width: '32px', height: '32px', border: '2px solid var(--border-2)', borderTopColor: 'var(--accent)',
           borderRadius: '50%', animation: 'spin 0.7s linear infinite', margin: '0 auto 12px',
         }} />
-        <p style={{ color: '#6B7280', fontSize: '13px', margin: '0 0 3px' }}>
+        <p style={{ color: 'var(--muted)', fontSize: '13px', margin: '0 0 3px' }}>
           {step === 'approve' ? 'Approving USDC…' : 'Confirming bet…'}
         </p>
-        <p style={{ color: '#9CA3AF', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>Check your wallet</p>
+        <p style={{ color: 'var(--dim)', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>Check your wallet</p>
       </div>
     )
   }
@@ -150,7 +150,7 @@ export function BetWidget({ market, expired, onSuccess }: Props) {
   return (
     <div>
       {/* YES / NO toggle */}
-      <div style={{ display: 'flex', background: '#F7F8FA', borderRadius: '8px', padding: '3px', gap: '3px', marginBottom: '14px' }}>
+      <div style={{ display: 'flex', background: 'var(--surface-2)', borderRadius: '8px', padding: '3px', gap: '3px', marginBottom: '14px' }}>
         {(['yes', 'no'] as const).map(s => (
           <button
             key={s}
@@ -160,10 +160,11 @@ export function BetWidget({ market, expired, onSuccess }: Props) {
               flex: 1, padding: '9px 0', borderRadius: '6px', border: 'none',
               cursor: expired ? 'not-allowed' : 'pointer',
               background: betSide === s
-                ? (s === 'yes' ? '#EFF6FF' : '#FEF2F2')
+                ? (s === 'yes' ? 'var(--yes-bg)' : 'var(--no-bg)')
                 : 'transparent',
-              color: betSide === s ? (s === 'yes' ? '#2563EB' : '#DC2626') : '#6B7280',
+              color: betSide === s ? (s === 'yes' ? 'var(--yes)' : 'var(--no)') : 'var(--muted)',
               fontWeight: '700', fontSize: '13px', transition: 'all 0.15s',
+              fontFamily: 'var(--font-mono)',
             }}
           >
             {s.toUpperCase()} ×{s === 'yes' ? odds.yesOdds : odds.noOdds}
@@ -173,7 +174,7 @@ export function BetWidget({ market, expired, onSuccess }: Props) {
 
       {/* Amount */}
       <div style={{ marginBottom: '10px' }}>
-        <label style={{ color: '#6B7280', fontSize: '11px', display: 'block', marginBottom: '6px', letterSpacing: '0.06em' }}>
+        <label style={{ color: 'var(--muted)', fontSize: '11px', display: 'block', marginBottom: '6px', letterSpacing: '0.06em', fontFamily: 'var(--font-mono)' }}>
           AMOUNT (USDC)
         </label>
         <div style={{ position: 'relative' }}>
@@ -185,14 +186,14 @@ export function BetWidget({ market, expired, onSuccess }: Props) {
             min="1"
             disabled={expired}
             style={{
-              width: '100%', background: '#F7F8FA', border: '1px solid #E5E7EB', borderRadius: '8px',
-              padding: '10px 48px 10px 12px', color: '#111827', fontSize: '15px',
+              width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '8px',
+              padding: '10px 48px 10px 12px', color: 'var(--text)', fontSize: '15px',
               fontFamily: 'var(--font-mono)', outline: 'none', boxSizing: 'border-box',
             }}
           />
           <span style={{
             position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
-            color: '#9CA3AF', fontSize: '11px', fontFamily: 'var(--font-mono)',
+            color: 'var(--muted)', fontSize: '11px', fontFamily: 'var(--font-mono)',
           }}>USDC</span>
         </div>
         <div style={{ display: 'flex', gap: '5px', marginTop: '7px' }}>
@@ -202,8 +203,8 @@ export function BetWidget({ market, expired, onSuccess }: Props) {
               onClick={() => setAmount(String(v))}
               disabled={expired}
               style={{
-                flex: 1, padding: '5px 0', background: '#FFFFFF', border: '1px solid #E5E7EB',
-                borderRadius: '6px', color: '#374151', cursor: expired ? 'not-allowed' : 'pointer',
+                flex: 1, padding: '5px 0', background: 'var(--surface-2)', border: '1px solid var(--border)',
+                borderRadius: '6px', color: 'var(--muted)', cursor: expired ? 'not-allowed' : 'pointer',
                 fontSize: '11px', fontFamily: 'var(--font-mono)', fontWeight: '600',
               }}
             >${v}</button>
@@ -214,26 +215,26 @@ export function BetWidget({ market, expired, onSuccess }: Props) {
       {/* Payout preview */}
       {amountUsdc > 0 && (
         <div style={{
-          background: '#F7F8FA', border: '1px solid #E5E7EB', borderRadius: '8px',
+          background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '8px',
           padding: '10px 12px', marginBottom: '12px',
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px' }}>
-            <span style={{ color: '#6B7280' }}>Potential payout</span>
-            <span style={{ color: '#111827', fontWeight: '700', fontFamily: 'var(--font-mono)' }}>${potentialPayout}</span>
+            <span style={{ color: 'var(--muted)' }}>Potential payout</span>
+            <span style={{ color: 'var(--text)', fontWeight: '700', fontFamily: 'var(--font-mono)' }}>${potentialPayout}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
-            <span style={{ color: '#9CA3AF' }}>Odds</span>
-            <span style={{ color: '#6B7280', fontFamily: 'var(--font-mono)' }}>×{selectedOdds}</span>
+            <span style={{ color: 'var(--dim)' }}>Odds</span>
+            <span style={{ color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>×{selectedOdds}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginTop: '3px' }}>
-            <span style={{ color: '#9CA3AF' }}>Protocol fee</span>
-            <span style={{ color: '#6B7280', fontFamily: 'var(--font-mono)' }}>0.75%</span>
+            <span style={{ color: 'var(--dim)' }}>Protocol fee</span>
+            <span style={{ color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>0.75%</span>
           </div>
         </div>
       )}
 
       {step === 'error' && (
-        <p style={{ color: '#DC2626', fontSize: '11px', marginBottom: '8px', lineHeight: '1.4' }}>
+        <p style={{ color: 'var(--no)', fontSize: '11px', marginBottom: '8px', lineHeight: '1.4' }}>
           {errorMsg || 'Transaction failed'}
         </p>
       )}
@@ -244,12 +245,12 @@ export function BetWidget({ market, expired, onSuccess }: Props) {
         style={{
           width: '100%', padding: '12px', borderRadius: '8px', border: 'none',
           background: expired || (isConnected && !amountUsdc)
-            ? '#F3F4F6'
-            : betSide === 'yes' ? '#2563EB' : '#DC2626',
-          color: expired || (isConnected && !amountUsdc) ? '#9CA3AF' : 'white',
+            ? 'var(--surface-2)'
+            : betSide === 'yes' ? 'var(--yes)' : 'var(--no)',
+          color: expired || (isConnected && !amountUsdc) ? 'var(--muted)' : 'white',
           fontWeight: '700', fontSize: '14px', letterSpacing: '0.04em',
           cursor: expired || (isConnected && !amountUsdc) ? 'not-allowed' : 'pointer',
-          transition: 'opacity 0.15s',
+          transition: 'opacity 0.15s', fontFamily: 'var(--font-mono)',
         }}
       >
         {expired

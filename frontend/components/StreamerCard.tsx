@@ -12,118 +12,97 @@ interface Props {
 export function StreamerCard({ channel, markets, isLive, thumbnail, onClick }: Props) {
   const [imgError, setImgError] = useState(false)
   const firstMarket = markets[0]
+  const yes = firstMarket ? Math.round(((firstMarket.total_yes_usdc || 0) / Math.max((firstMarket.total_yes_usdc || 0) + (firstMarket.total_no_usdc || 0), 1)) * 100) : 50
+  const no = 100 - yes
 
   return (
     <div
       onClick={onClick}
       style={{
-        background: '#FFFFFF',
-        border: '1px solid #E5E7EB',
+        background: 'var(--surface)',
+        border: '1px solid var(--border)',
         borderRadius: '12px',
         overflow: 'hidden',
         cursor: 'pointer',
-        transition: 'box-shadow 0.2s',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+        transition: 'border-color 0.2s, transform 0.2s',
       }}
-      onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.10)' }}
-      onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.06)' }}
+      onMouseEnter={e => {
+        e.currentTarget.style.borderColor = 'var(--border-2)'
+        e.currentTarget.style.transform = 'translateY(-1px)'
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.borderColor = 'var(--border)'
+        e.currentTarget.style.transform = 'translateY(0)'
+      }}
     >
       {/* Thumbnail */}
-      <div style={{ position: 'relative', width: '100%', aspectRatio: '16/9', background: '#F3F4F6' }}>
+      <div style={{ position: 'relative', width: '100%', aspectRatio: '16/9', background: 'var(--surface-2)' }}>
         {thumbnail && !imgError ? (
-          <img
-            src={thumbnail}
-            alt={channel}
-            onError={() => setImgError(true)}
-            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-          />
+          <img src={thumbnail} alt={channel} onError={() => setImgError(true)}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
         ) : (
-          <div style={{
-            width: '100%', height: '100%',
-            background: 'linear-gradient(135deg, #F3F4F6, #E5E7EB)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <span style={{ fontSize: '32px', opacity: 0.3 }}>📺</span>
+          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ color: 'var(--dim)', fontSize: '28px', fontFamily: 'var(--font-display)', fontWeight: 800 }}>
+              {channel.slice(0, 1).toUpperCase()}
+            </span>
           </div>
         )}
         {isLive && (
-          <span style={{
-            position: 'absolute', top: '10px', left: '10px',
-            background: '#EF4444', color: 'white',
-            fontSize: '11px', fontWeight: '700',
-            padding: '3px 8px', borderRadius: '9999px',
-            display: 'flex', alignItems: 'center', gap: '4px',
+          <div style={{
+            position: 'absolute', top: '8px', left: '8px',
+            display: 'flex', alignItems: 'center', gap: '5px',
+            background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)',
+            borderRadius: '5px', padding: '3px 7px',
           }}>
-            <span className="live-dot" style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'white', display: 'inline-block' }} />
-            LIVE
-          </span>
+            <span className="live-dot" style={{ width: '5px', height: '5px' }} />
+            <span style={{ color: 'white', fontSize: '10px', fontFamily: 'var(--font-mono)', fontWeight: '600', letterSpacing: '0.05em' }}>LIVE</span>
+          </div>
         )}
         {markets.length > 0 && (
-          <span style={{
-            position: 'absolute', top: '10px', right: '10px',
-            background: 'rgba(255,255,255,0.9)',
-            color: '#111827', fontSize: '11px', fontWeight: '600',
-            padding: '3px 8px', borderRadius: '9999px',
-            backdropFilter: 'blur(4px)',
+          <div style={{
+            position: 'absolute', top: '8px', right: '8px',
+            background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)',
+            borderRadius: '5px', padding: '3px 7px',
           }}>
-            {markets.length} market{markets.length !== 1 ? 's' : ''}
-          </span>
+            <span style={{ color: 'white', fontSize: '10px', fontFamily: 'var(--font-mono)', fontWeight: '600' }}>
+              {markets.length} {markets.length === 1 ? 'market' : 'markets'}
+            </span>
+          </div>
         )}
       </div>
 
       {/* Body */}
-      <div style={{ padding: '12px 14px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-          <span style={{ color: '#111827', fontWeight: '600', fontSize: '14px' }}>{channel}</span>
-          <a
-            href={`https://kick.com/${channel}`}
-            target="_blank"
-            rel="noopener noreferrer"
+      <div style={{ padding: '12px 14px 14px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '14px', color: 'var(--text)' }}>
+            {channel}
+          </span>
+          <a href={`https://kick.com/${channel}`} target="_blank" rel="noopener noreferrer"
             onClick={e => e.stopPropagation()}
-            style={{ color: '#6B7280', fontSize: '11px', fontFamily: 'var(--font-mono)', textDecoration: 'none' }}
-          >
-            kick.com ↗
+            style={{ color: 'var(--dim)', fontSize: '10px', fontFamily: 'var(--font-mono)', textDecoration: 'none', marginLeft: 'auto' }}>
+            kick ↗
           </a>
         </div>
 
         {firstMarket ? (
           <>
-            <p style={{
-              color: '#374151', fontSize: '12px', lineHeight: '1.5',
-              margin: '0 0 8px',
-              overflow: 'hidden', display: '-webkit-box',
-              WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
-            }}>
+            <p style={{ color: 'var(--muted)', fontSize: '12px', marginBottom: '10px', lineHeight: '1.4',
+              display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
               {firstMarket.title}
             </p>
-            <MiniOddsBar market={firstMarket} />
+            {/* Prob bar */}
+            <div style={{ display: 'flex', gap: '2px', borderRadius: '4px', overflow: 'hidden', height: '4px', marginBottom: '7px' }}>
+              <div style={{ width: yes + '%', background: 'var(--yes)', transition: 'width 0.5s ease' }} />
+              <div style={{ width: no + '%', background: 'var(--no)', transition: 'width 0.5s ease' }} />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>
+              <span style={{ color: 'var(--yes)', fontWeight: '600' }}>YES {yes}%</span>
+              <span style={{ color: 'var(--no)', fontWeight: '600' }}>{no}% NO</span>
+            </div>
           </>
         ) : (
-          <p style={{ color: '#9CA3AF', fontSize: '12px', margin: 0 }}>No active markets</p>
+          <p style={{ color: 'var(--dim)', fontSize: '12px' }}>No active markets</p>
         )}
-
-        <div style={{ marginTop: '10px', color: '#6366F1', fontSize: '12px', fontWeight: '600' }}>
-          View markets →
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function MiniOddsBar({ market }: { market: any }) {
-  const totalPool = (market.total_yes_usdc || 0) + (market.total_no_usdc || 0)
-  const yesPercent = totalPool > 0 ? Math.round((market.total_yes_usdc / totalPool) * 100) : 50
-  const noPercent = 100 - yesPercent
-
-  return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontFamily: 'var(--font-mono)', marginBottom: '4px' }}>
-        <span style={{ color: '#2563EB', fontWeight: '700' }}>Yes {yesPercent}%</span>
-        <span style={{ color: '#DC2626', fontWeight: '700' }}>{noPercent}% No</span>
-      </div>
-      <div style={{ height: '3px', background: '#E5E7EB', borderRadius: '9999px', overflow: 'hidden', display: 'flex' }}>
-        <div style={{ height: '100%', width: yesPercent + '%', background: '#2563EB', transition: 'width 0.5s ease' }} />
-        <div style={{ height: '100%', width: noPercent + '%', background: '#DC2626', transition: 'width 0.5s ease' }} />
       </div>
     </div>
   )

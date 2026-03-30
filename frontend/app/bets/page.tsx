@@ -23,15 +23,18 @@ export default function BetsPage() {
 
   return (
     <div style={{ maxWidth: '720px', margin: '0 auto', padding: '32px 24px' }}>
-      <h1 style={{ fontSize: '22px', fontWeight: '700', color: '#111827', marginBottom: '20px' }}>My Bets</h1>
+      <h1 style={{
+        fontSize: '22px', fontFamily: 'var(--font-display)', fontWeight: 800,
+        color: 'var(--text)', marginBottom: '20px',
+      }}>My Bets</h1>
 
       {!isConnected ? (
         <div style={{ textAlign: 'center', padding: '80px 0' }}>
-          <p style={{ color: '#6B7280', marginBottom: '16px', fontSize: '15px' }}>Connect your wallet to see your bets</p>
+          <p style={{ color: 'var(--muted)', marginBottom: '16px', fontSize: '15px' }}>Connect your wallet to see your bets</p>
           <button
             onClick={openConnectModal}
             style={{
-              padding: '10px 24px', background: '#6366F1', color: 'white',
+              padding: '10px 24px', background: 'var(--accent)', color: 'white',
               border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', fontSize: '14px',
             }}
           >Connect Wallet</button>
@@ -39,7 +42,7 @@ export default function BetsPage() {
       ) : loading ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {[...Array(3)].map((_, i) => (
-            <div key={i} style={{ height: '80px', background: '#F3F4F6', border: '1px solid #E5E7EB', borderRadius: '12px' }} />
+            <div key={i} className="skel" style={{ height: '80px' }} />
           ))}
         </div>
       ) : (
@@ -49,31 +52,31 @@ export default function BetsPage() {
             {[
               { label: 'Total Wagered', value: `$${totalWagered.toFixed(2)}` },
               { label: 'Total Won', value: `$${totalWon.toFixed(2)}` },
-              { label: 'P&L', value: `${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`, color: pnl >= 0 ? '#059669' : '#DC2626' },
+              { label: 'P&L', value: `${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`, color: pnl >= 0 ? 'var(--green)' : 'var(--no)' },
             ].map(s => (
               <div key={s.label} style={{
-                background: '#F7F8FA', border: '1px solid #E5E7EB',
+                background: 'var(--surface)', border: '1px solid var(--border)',
                 borderRadius: '10px', padding: '14px', textAlign: 'center',
               }}>
-                <p style={{ color: s.color || '#111827', fontSize: '18px', fontWeight: '700', margin: '0 0 3px', fontFamily: 'var(--font-mono)' }}>{s.value}</p>
-                <p style={{ color: '#9CA3AF', fontSize: '11px', margin: 0 }}>{s.label}</p>
+                <p style={{ color: s.color || 'var(--text)', fontSize: '18px', fontWeight: '700', margin: '0 0 3px', fontFamily: 'var(--font-mono)' }}>{s.value}</p>
+                <p style={{ color: 'var(--muted)', fontSize: '11px', margin: 0 }}>{s.label}</p>
               </div>
             ))}
           </div>
 
           {/* Tabs */}
-          <div style={{ display: 'flex', borderBottom: '1px solid #E5E7EB', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: '16px' }}>
             {(['active', 'settled', 'all'] as Tab[]).map(t => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
                 style={{
                   padding: '8px 16px', background: 'transparent', border: 'none',
-                  borderBottom: tab === t ? '2px solid #6366F1' : '2px solid transparent',
-                  color: tab === t ? '#6366F1' : '#6B7280',
+                  borderBottom: tab === t ? '2px solid var(--accent)' : '2px solid transparent',
+                  color: tab === t ? 'var(--text)' : 'var(--muted)',
                   fontWeight: tab === t ? '600' : '500',
                   fontSize: '14px', cursor: 'pointer', marginBottom: '-1px',
-                  textTransform: 'capitalize',
+                  textTransform: 'capitalize', fontFamily: 'var(--font-body)',
                 }}
               >
                 {t} {t === 'active' ? `(${activeBets.length})` : t === 'settled' ? `(${settledBets.length})` : `(${bets.length})`}
@@ -83,9 +86,9 @@ export default function BetsPage() {
 
           {/* Bet list */}
           {displayBets.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '48px 0', color: '#9CA3AF' }}>
+            <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--muted)' }}>
               {tab === 'active'
-                ? <><p style={{ marginBottom: '8px' }}>No active bets.</p><Link href="/" style={{ color: '#6366F1', fontWeight: '600', fontSize: '14px' }}>Browse markets →</Link></>
+                ? <><p style={{ marginBottom: '8px' }}>No active bets.</p><Link href="/" style={{ color: 'var(--accent)', fontWeight: '600', fontSize: '14px' }}>Browse markets →</Link></>
                 : 'No bets here yet.'}
             </div>
           ) : (
@@ -122,30 +125,29 @@ function BetCard({ bet, onClaimed }: { bet: any; onClaimed: () => void }) {
   const marketExpired = market?.closes_at ? isPast(new Date(market.closes_at)) : false
 
   const statusStyle = {
-    won: { color: '#059669', bg: '#ECFDF5', border: '#A7F3D0' },
-    lost: { color: '#DC2626', bg: '#FEF2F2', border: '#FECACA' },
-    confirmed: { color: '#D97706', bg: '#FFFBEB', border: '#FDE68A' },
-    refunded: { color: '#6B7280', bg: '#F7F8FA', border: '#E5E7EB' },
+    won: { color: 'var(--green)', bg: 'var(--green-bg)', border: 'rgba(16,185,129,0.25)' },
+    lost: { color: 'var(--no)', bg: 'var(--no-bg)', border: 'rgba(239,68,68,0.25)' },
+    confirmed: { color: '#D97706', bg: 'rgba(217,119,6,0.12)', border: 'rgba(217,119,6,0.25)' },
+    refunded: { color: 'var(--muted)', bg: 'var(--surface-2)', border: 'var(--border)' },
   }
   const ss = statusStyle[bet.status as keyof typeof statusStyle] || statusStyle.confirmed
 
   return (
     <div style={{
-      background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: '12px', padding: '14px 16px',
-      boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+      background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px', padding: '14px 16px',
     }}>
       {/* Market title */}
       <div style={{ marginBottom: '10px' }}>
         {channel ? (
           <Link href={`/markets/${channel}`} style={{ textDecoration: 'none' }}>
-            <p style={{ color: '#111827', fontSize: '14px', fontWeight: '600', margin: '0 0 2px', lineHeight: '1.4' }}>
+            <p style={{ color: 'var(--text)', fontSize: '14px', fontWeight: '600', margin: '0 0 2px', lineHeight: '1.4' }}>
               {market?.title || 'Market'}
             </p>
           </Link>
         ) : (
-          <p style={{ color: '#111827', fontSize: '14px', fontWeight: '600', margin: '0 0 2px' }}>{market?.title || 'Market'}</p>
+          <p style={{ color: 'var(--text)', fontSize: '14px', fontWeight: '600', margin: '0 0 2px' }}>{market?.title || 'Market'}</p>
         )}
-        {channel && <p style={{ color: '#9CA3AF', fontSize: '11px', margin: 0 }}>{channel}</p>}
+        {channel && <p style={{ color: 'var(--muted)', fontSize: '11px', margin: 0, fontFamily: 'var(--font-mono)' }}>{channel}</p>}
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
@@ -153,20 +155,20 @@ function BetCard({ bet, onClaimed }: { bet: any; onClaimed: () => void }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span style={{
             padding: '3px 10px', borderRadius: '6px', fontSize: '12px', fontWeight: '700', fontFamily: 'var(--font-mono)',
-            background: bet.side === 'yes' ? '#EFF6FF' : '#FEF2F2',
-            color: bet.side === 'yes' ? '#2563EB' : '#DC2626',
+            background: bet.side === 'yes' ? 'var(--yes-bg)' : 'var(--no-bg)',
+            color: bet.side === 'yes' ? 'var(--yes)' : 'var(--no)',
           }}>{(bet.side || '').toUpperCase()}</span>
-          <span style={{ color: '#111827', fontSize: '13px', fontFamily: 'var(--font-mono)', fontWeight: '600' }}>
+          <span style={{ color: 'var(--text)', fontSize: '13px', fontFamily: 'var(--font-mono)', fontWeight: '600' }}>
             ${bet.amount_usdc.toFixed(2)}
           </span>
-          <span style={{ color: '#9CA3AF', fontSize: '12px', fontFamily: 'var(--font-mono)' }}>
+          <span style={{ color: 'var(--muted)', fontSize: '12px', fontFamily: 'var(--font-mono)' }}>
             ×{bet.odds_at_placement?.toFixed(2) || '—'} → ${bet.potential_payout_usdc?.toFixed(2) ?? '—'}
           </span>
         </div>
 
         {/* Right: status + time + claim */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ color: '#9CA3AF', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>
+          <span style={{ color: 'var(--dim)', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>
             {bet.placed_at ? formatDistanceToNow(new Date(bet.placed_at), { addSuffix: true }) : '—'}
           </span>
           <span style={{
@@ -179,7 +181,7 @@ function BetCard({ bet, onClaimed }: { bet: any; onClaimed: () => void }) {
               disabled={isPending}
               style={{
                 padding: '5px 14px', borderRadius: '8px', border: 'none',
-                background: bet.status === 'won' ? '#059669' : '#6B7280',
+                background: bet.status === 'won' ? 'var(--green)' : 'var(--muted)',
                 color: 'white', fontSize: '12px', fontWeight: '600',
                 cursor: isPending ? 'not-allowed' : 'pointer', opacity: isPending ? 0.6 : 1,
               }}
@@ -187,7 +189,7 @@ function BetCard({ bet, onClaimed }: { bet: any; onClaimed: () => void }) {
               {isPending ? '…' : bet.status === 'won' ? 'Claim' : 'Refund'}
             </button>
           )}
-          {isSuccess && <span style={{ color: '#059669', fontSize: '12px', fontWeight: '600' }}>✓ Claimed</span>}
+          {isSuccess && <span style={{ color: 'var(--green)', fontSize: '12px', fontWeight: '600' }}>✓ Claimed</span>}
         </div>
       </div>
     </div>

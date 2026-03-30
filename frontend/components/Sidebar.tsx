@@ -15,55 +15,47 @@ export function Sidebar() {
       .catch(() => {})
   }, [])
 
-  const navItems = [
-    { href: '/', label: 'Markets', icon: '◈' },
-    { href: '/bets', label: 'My Bets', icon: '◎' },
-  ]
-
   return (
-    <aside style={{
-      width: '240px',
-      flexShrink: 0,
-      borderRight: '1px solid #E5E7EB',
-      background: '#F7F8FA',
-      display: 'flex',
-      flexDirection: 'column',
-      position: 'sticky',
-      top: 0,
-      height: '100vh',
-    }}>
+    <aside className="sidebar">
       {/* Logo */}
-      <div style={{ padding: '20px 20px 8px' }}>
+      <div style={{ padding: '24px 20px 20px', borderBottom: '1px solid var(--border)' }}>
         <Link href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div style={{
             width: '32px', height: '32px',
-            background: '#EF4444',
+            background: 'var(--live)',
             borderRadius: '8px',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontWeight: '800', color: 'white', fontSize: '15px',
+            fontFamily: 'var(--font-display)', fontWeight: 800, color: 'white', fontSize: '15px',
           }}>P</div>
-          <span style={{ color: '#111827', fontWeight: '700', fontSize: '16px' }}>Pulse</span>
+          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '18px', color: 'var(--text)', letterSpacing: '-0.02em' }}>Pulse</span>
         </Link>
       </div>
 
       {/* Nav */}
       <nav style={{ padding: '12px 12px', flex: 1 }}>
-        {navItems.map(item => {
+        {[
+          { href: '/', label: 'Markets', icon: '▦' },
+          { href: '/bets', label: 'My Bets', icon: '◈' },
+        ].map(item => {
           const active = path === item.href
           return (
-            <Link key={item.href} href={item.href} style={{
-              display: 'flex', alignItems: 'center', gap: '10px',
-              padding: '9px 12px', borderRadius: '8px', textDecoration: 'none',
-              marginBottom: '2px',
-              background: active ? '#FFFFFF' : 'transparent',
-              color: active ? '#111827' : '#6B7280',
-              fontWeight: active ? '600' : '500',
-              fontSize: '14px',
-              boxShadow: active ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-              transition: 'all 0.15s',
-            }}>
-              <span style={{ fontSize: '16px', opacity: 0.7 }}>{item.icon}</span>
-              {item.label}
+            <Link key={item.href} href={item.href} style={{ textDecoration: 'none' }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: '10px',
+                padding: '9px 12px', borderRadius: '8px', marginBottom: '2px',
+                background: active ? 'rgba(124,58,237,0.15)' : 'transparent',
+                color: active ? 'var(--accent)' : 'var(--muted)',
+                fontSize: '14px', fontWeight: active ? '600' : '500',
+                transition: 'all 0.15s',
+                cursor: 'pointer',
+              }}>
+                <span style={{ fontSize: '13px', opacity: 0.8 }}>{item.icon}</span>
+                {item.label}
+                {active && <span style={{
+                  marginLeft: 'auto', width: '5px', height: '5px',
+                  borderRadius: '50%', background: 'var(--accent)',
+                }} />}
+              </div>
             </Link>
           )
         })}
@@ -71,32 +63,32 @@ export function Sidebar() {
         {/* Live count */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: '10px',
-          padding: '9px 12px', borderRadius: '8px',
-          color: '#6B7280', fontSize: '14px', fontWeight: '500',
+          padding: '9px 12px', borderRadius: '8px', marginBottom: '2px',
+          color: 'var(--muted)', fontSize: '14px', fontWeight: '500',
         }}>
-          <span
-            className="live-dot"
-            style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#EF4444', display: 'inline-block', flexShrink: 0 }}
-          />
+          <span className="live-dot" />
           Live
           {liveCount > 0 && (
             <span style={{
-              marginLeft: 'auto', background: '#FEE2E2', color: '#DC2626',
-              borderRadius: '9999px', padding: '1px 7px', fontSize: '12px', fontWeight: '600',
+              marginLeft: 'auto',
+              background: 'rgba(255,45,85,0.15)', color: 'var(--live)',
+              borderRadius: '6px', padding: '1px 7px', fontSize: '11px',
+              fontFamily: 'var(--font-mono)', fontWeight: '600',
             }}>{liveCount}</span>
           )}
         </div>
       </nav>
 
-      {/* Bottom: chain + wallet */}
-      <div style={{ padding: '16px', borderTop: '1px solid #E5E7EB' }}>
+      {/* Bottom */}
+      <div style={{ padding: '16px', borderTop: '1px solid var(--border)' }}>
         <div style={{
           display: 'flex', alignItems: 'center', gap: '6px',
-          padding: '6px 10px', background: '#ECFDF5', border: '1px solid #D1FAE5',
-          borderRadius: '8px', marginBottom: '10px',
+          padding: '6px 10px',
+          background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)',
+          borderRadius: '8px', marginBottom: '12px',
         }}>
-          <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#10B981', display: 'inline-block' }} />
-          <span style={{ color: '#065F46', fontSize: '12px', fontFamily: 'var(--font-mono)', fontWeight: '600' }}>Base Sepolia</span>
+          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--green)', display: 'inline-block', flexShrink: 0 }} />
+          <span style={{ color: 'var(--green)', fontSize: '11px', fontFamily: 'var(--font-mono)', fontWeight: '600' }}>Base Sepolia</span>
         </div>
         <ConnectButton showBalance={false} chainStatus="none" accountStatus="avatar" />
       </div>

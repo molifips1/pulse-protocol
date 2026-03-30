@@ -68,12 +68,15 @@ export function LiveMarketsGrid() {
   return (
     <div style={{ padding: '24px 32px' }}>
       {/* Page heading */}
-      <h1 style={{ fontSize: '22px', fontWeight: '700', color: '#111827', marginBottom: '16px' }}>Markets</h1>
+      <h1 style={{
+        fontSize: '22px', fontFamily: 'var(--font-display)', fontWeight: 800,
+        color: 'var(--text)', marginBottom: '16px',
+      }}>Markets</h1>
 
       {/* Filter tabs */}
       <div style={{
         display: 'flex', gap: '0',
-        borderBottom: '1px solid #E5E7EB', marginBottom: '24px',
+        borderBottom: '1px solid var(--border)', marginBottom: '24px',
       }}>
         {FILTERS.map(f => (
           <button
@@ -81,11 +84,11 @@ export function LiveMarketsGrid() {
             onClick={() => setFilter(f.key)}
             style={{
               padding: '8px 16px', background: 'transparent', border: 'none',
-              borderBottom: filter === f.key ? '2px solid #6366F1' : '2px solid transparent',
-              color: filter === f.key ? '#6366F1' : '#6B7280',
+              borderBottom: filter === f.key ? '2px solid var(--accent)' : '2px solid transparent',
+              color: filter === f.key ? 'var(--text)' : 'var(--muted)',
               fontWeight: filter === f.key ? '600' : '500',
               fontSize: '14px', cursor: 'pointer', transition: 'all 0.15s',
-              marginBottom: '-1px',
+              marginBottom: '-1px', fontFamily: 'var(--font-body)',
             }}
           >
             {f.label}
@@ -96,20 +99,16 @@ export function LiveMarketsGrid() {
       {loading ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
           {[...Array(6)].map((_, i) => (
-            <div key={i} style={{
-              height: '280px', background: '#F3F4F6',
-              border: '1px solid #E5E7EB', borderRadius: '12px',
-              animation: 'pulse 1.5s ease-in-out infinite',
-            }} />
+            <div key={i} className="skel" style={{ height: '280px' }} />
           ))}
         </div>
       ) : allChannels.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '80px 0' }}>
-          <div style={{ fontSize: '40px', marginBottom: '12px', opacity: 0.4 }}>📡</div>
-          <p style={{ color: '#111827', fontSize: '16px', fontWeight: '600', marginBottom: '6px' }}>
+          <div style={{ fontSize: '40px', marginBottom: '12px', opacity: 0.3 }}>📡</div>
+          <p style={{ color: 'var(--text)', fontSize: '16px', fontFamily: 'var(--font-display)', fontWeight: 700, marginBottom: '6px' }}>
             Scanning Streams
           </p>
-          <p style={{ color: '#6B7280', fontSize: '14px' }}>
+          <p style={{ color: 'var(--muted)', fontSize: '14px' }}>
             AI Watcher is monitoring live streams. Markets appear when events are detected.
           </p>
         </div>

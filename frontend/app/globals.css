@@ -2,30 +2,94 @@
 @tailwind components;
 @tailwind utilities;
 
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
 :root {
-  --font-mono: 'IBM Plex Mono', monospace;
+  --bg: #0E0F14;
+  --surface: #1A1B23;
+  --surface-2: #22232E;
+  --border: rgba(255,255,255,0.07);
+  --border-2: rgba(255,255,255,0.12);
+  --text: #E8E9F0;
+  --muted: #5C5D70;
+  --dim: #3A3B4E;
+  --yes: #3B82F6;
+  --yes-bg: rgba(59,130,246,0.12);
+  --no: #EF4444;
+  --no-bg: rgba(239,68,68,0.12);
+  --live: #FF2D55;
+  --green: #10B981;
+  --green-bg: rgba(16,185,129,0.12);
+  --accent: #7C3AED;
+  --font-mono: 'JetBrains Mono', monospace;
+  --font-display: 'Syne', sans-serif;
+  --font-body: 'DM Sans', sans-serif;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-body {
-  background: #FFFFFF;
-  color: #111827;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Sidebar layout */
+.sidebar {
+  position: fixed;
+  left: 0; top: 0; bottom: 0;
+  width: 240px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  z-index: 40;
+  overflow-y: auto;
+}
+
+.main-wrap {
+  margin-left: 240px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (max-width: 1023px) {
+  .sidebar { display: none; }
+  .main-wrap { margin-left: 0; }
 }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-track { background: #F7F8FA; }
-::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 2px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--dim); border-radius: 2px; }
 
-/* Monospace numbers */
-.num { font-family: var(--font-mono); }
-
-/* Live dot pulse */
+/* Live pulse animation */
 @keyframes livePulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
 }
-.live-dot { animation: livePulse 1.2s ease-in-out infinite; }
+
+.live-dot {
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--live);
+  animation: livePulse 1.4s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+/* Skeleton pulse */
+@keyframes skelPulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+
+.skel {
+  background: var(--surface-2);
+  border-radius: 8px;
+  animation: skelPulse 1.6s ease-in-out infinite;
+}
