@@ -10,7 +10,7 @@ export function useUserBets() {
   const fetchBets = async (addr: string) => {
     const { data } = await supabase
       .from('bets')
-      .select('*, markets(title, status, outcome, category)')
+      .select('*, markets(title, status, outcome, category, closes_at, streams(stream_key))')
       .eq('wallet_address', addr.toLowerCase())
       .order('placed_at', { ascending: false })
       .limit(50)
@@ -23,7 +23,6 @@ export function useUserBets() {
     setLoading(true)
     fetchBets(address)
 
-    // Realtime: refresh when bets or markets change
     const channel = supabase.channel('user-bets-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bets' }, () => fetchBets(address))
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'markets' }, () => fetchBets(address))
