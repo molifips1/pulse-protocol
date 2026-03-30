@@ -57,6 +57,13 @@ const pendingMarkets = new Map()
 const chatMonitors = new Map()
 const PUSHER_KEY = '32cbd69e4b950bf97679'
 
+// Standard bet tracking
+const giftedSubTotals = new Map()   // channel -> running gifted sub total this session
+const giftMonitors = new Map()      // channel -> { ws }
+const viewerFloorMarkets = new Map() // marketId -> { channel, floorThreshold, failed, failReason }
+const sessionBetsCreated = new Set() // channels that already have standard bets this session
+const previouslyLive = new Set()    // channels live last cycle (to detect session start/end)
+
 function startChatMonitor(marketId, chatRoomId) {
   if (!chatRoomId) return
   const messages = []
@@ -93,6 +100,47 @@ function stopChatMonitor(marketId) {
     try { monitor.ws.close() } catch (e) {}
     chatMonitors.delete(marketId)
   }
+}
+
+function startGiftMonitor(channel, chatRoomId) {
+  if (!chatRoomId || giftMonitors.has(channel)) return
+  if (!giftedSubTotals.has(channel)) giftedSubTotals.set(channel, 0)
+  try {
+    const ws = new WebSocket(
+      `wss://ws-us2.pusher.com/app/${PUSHER_KEY}?protocol=7&client=js&version=7.2.0&flash=false`,
+      { headers: { 'Origin': 'https://kick.com' } }
+    )
+    giftMonitors.set(channel, { ws })
+    ws.on('open', () => {
+      ws.send(JSON.stringify({ event: 'pusher:subscribe', data: { auth: '', channel: `chatrooms.${chatRoomId}.v2` } }))
+      console.log(`[GIFTS] Monitoring gifted subs for ${channel}`)
+    })
+    ws.on('message', (raw) => {
+      try {
+        const msg = JSON.parse(raw)
+        if (msg.event === 'App\\Events\\GiftedSubscriptionsEvent') {
+          const d = JSON.parse(msg.data)
+          const qty = d.gifted_quantity || d.quantity || 1
+          const prev = giftedSubTotals.get(channel) || 0
+          giftedSubTotals.set(channel, prev + qty)
+          console.log(`[GIFTS] ${channel}: +${qty} gifted subs (session total: ${prev + qty})`)
+        }
+      } catch (e) {}
+    })
+    ws.on('error', () => {})
+    ws.on('close', () => { giftMonitors.delete(channel) })
+  } catch (e) {
+    console.log(`[GIFTS] Monitor failed for ${channel}: ${e.message}`)
+  }
+}
+
+function stopGiftMonitor(channel) {
+  const monitor = giftMonitors.get(channel)
+  if (monitor) {
+    try { monitor.ws.close() } catch (e) {}
+    giftMonitors.delete(channel)
+  }
+  giftedSubTotals.delete(channel)
 }
 
 function analyzeChatMessages(messages, eventType) {
@@ -480,9 +528,9 @@ async function resolveMarket(market, currentStreamInfo) {
   return { outcome, reasoning: `Viewers ${threshold} → ${currentStreamInfo.viewers} (${viewerChange.toFixed(1)}%)` }
 }
 
-async function fireMarketCreation(channel, streamInfo, event, chatRoomId) {
-  const gameCategory = getGameCategory(streamInfo.category)
-  const bettingWindowSeconds = 300
+async function fireMarketCreation(channel, streamInfo, event, chatRoomId, bettingWindowSeconds = 300) {
+  const standardTypes = ['gifted_sub_marathon', 'viewer_floor']
+  const category = standardTypes.includes(event.event_type) ? 'casino' : getGameCategory(streamInfo.category)
   const payload = {
     streamId: channel,
     streamerId: null,
@@ -493,7 +541,7 @@ async function fireMarketCreation(channel, streamInfo, event, chatRoomId) {
     bettingWindowSeconds,
     frameHash: crypto.randomBytes(32).toString('hex'),
     rawDetection: { source: 'groq_v4', channel, viewers: streamInfo.viewers },
-    category: gameCategory
+    category,
   }
   try {
     const result = await fetchJson(
@@ -517,8 +565,17 @@ async function fireMarketCreation(channel, streamInfo, event, chatRoomId) {
         threshold: event.threshold || streamInfo.viewers,
         snapshotTitle: streamInfo.title,
       })
-      // Start listening to chat for this market
-      startChatMonitor(marketId, chatRoomId)
+      // Start chat monitor for standard AI markets
+      if (chatRoomId) startChatMonitor(marketId, chatRoomId)
+      // Track viewer floor markets for instant resolution
+      if (event.event_type === 'viewer_floor') {
+        viewerFloorMarkets.set(marketId, {
+          channel,
+          floorThreshold: event.threshold,
+          failed: false,
+          failReason: null,
+        })
+      }
       return true
     } else {
       console.log(`[DETECTOR] Oracle error: ${JSON.stringify(result.data)}`)
@@ -527,6 +584,38 @@ async function fireMarketCreation(channel, streamInfo, event, chatRoomId) {
     console.log(`[DETECTOR] Webhook failed: ${e.message}`)
   }
   return false
+}
+
+async function createStandardBets(channel, streamer) {
+  const viewers = streamer.viewers || 0
+
+  // Standard Bet 1: Gifted Sub Marathon (4 hour window)
+  const giftEvent = {
+    event_type: 'gifted_sub_marathon',
+    market_title: `Will @${channel} receive 1,000+ gifted subs this session?`,
+    confidence: 0.5,
+    verification_type: 'gifted_sub_count',
+    threshold: 1000,
+  }
+  await fireMarketCreation(channel, streamer, giftEvent, null, 14400)
+  await new Promise(r => setTimeout(r, 2000))
+
+  // Standard Bet 2: Viewer Floor (2 hour window)
+  // Floor = 70% of current viewers, rounded to nearest 500, minimum 500
+  const floorThreshold = Math.max(500, Math.round((viewers * 0.7) / 500) * 500)
+  const floorEvent = {
+    event_type: 'viewer_floor',
+    market_title: `Will ${channel} maintain ${floorThreshold.toLocaleString()}+ viewers for 2 hours?`,
+    confidence: 0.5,
+    verification_type: 'viewer_floor',
+    threshold: floorThreshold,
+  }
+  await fireMarketCreation(channel, streamer, floorEvent, null, 7200)
+
+  // Start gift sub WebSocket tracker
+  if (streamer.chatRoomId) startGiftMonitor(channel, streamer.chatRoomId)
+
+  console.log(`[STANDARD] Created standard bets for ${channel} (gift: 1000 subs, floor: ${floorThreshold} viewers)`)
 }
 
 async function resolveExpiredMarkets() {
@@ -545,15 +634,41 @@ async function resolveExpiredMarkets() {
 
   for (const [id, market] of toResolve) {
     try {
-      // Try chat-based resolution first (most accurate)
-      const monitor = chatMonitors.get(id)
-      let resolution = monitor ? analyzeChatMessages(monitor.messages, market.eventType) : null
-      stopChatMonitor(id)
+      let resolution = null
 
-      // Fall back to Kick API comparison if chat unavailable
-      if (!resolution) {
-        const streamInfo = await checkIfLive(market.channel)
-        resolution = await resolveMarket(market, streamInfo)
+      // Gifted Sub Marathon: check running total
+      if (market.eventType === 'gifted_sub_marathon') {
+        const total = giftedSubTotals.get(market.channel) || 0
+        const outcome = total >= market.threshold ? 'yes' : 'no'
+        resolution = { outcome, reasoning: `Session gifted subs: ${total} (threshold: ${market.threshold})` }
+        stopGiftMonitor(market.channel)
+      }
+
+      // Viewer Floor: check if floor was ever broken
+      else if (market.eventType === 'viewer_floor') {
+        const floorData = viewerFloorMarkets.get(id)
+        if (floorData && floorData.failed) {
+          resolution = { outcome: 'no', reasoning: floorData.failReason || `Viewers dropped below ${market.threshold}` }
+        } else {
+          const streamInfo = await checkIfLive(market.channel)
+          if (!streamInfo.isLive) {
+            resolution = { outcome: 'no', reasoning: 'Stream went offline before 2 hours' }
+          } else {
+            resolution = { outcome: 'yes', reasoning: `Maintained ${market.threshold}+ viewers for full duration` }
+          }
+        }
+        viewerFloorMarkets.delete(id)
+      }
+
+      // Standard AI markets: try chat first, then Kick API
+      else {
+        const monitor = chatMonitors.get(id)
+        resolution = monitor ? analyzeChatMessages(monitor.messages, market.eventType) : null
+        stopChatMonitor(id)
+        if (!resolution) {
+          const streamInfo = await checkIfLive(market.channel)
+          resolution = await resolveMarket(market, streamInfo)
+        }
       }
 
       if (!resolution) {
@@ -620,6 +735,43 @@ async function mainLoop() {
   }))
   console.log(`[DETECTOR] ${liveStreamers.length} streamers live:`)
   liveStreamers.slice(0, 5).forEach(s => console.log(`  - ${s.channel} (${s.viewers} viewers)`))
+
+  const currentLive = new Set(liveStreamers.map(s => s.channel))
+
+  // Clear session state for streamers that went offline
+  for (const channel of previouslyLive) {
+    if (!currentLive.has(channel)) {
+      sessionBetsCreated.delete(channel)
+      stopGiftMonitor(channel)
+      console.log(`[DETECTOR] ${channel} went offline — session cleared`)
+    }
+  }
+  previouslyLive.clear()
+  for (const ch of currentLive) previouslyLive.add(ch)
+
+  // Check viewer floor markets — instant NO if floor breaks
+  for (const [marketId, floorData] of viewerFloorMarkets.entries()) {
+    if (floorData.failed) continue
+    const live = liveStreamers.find(s => s.channel === floorData.channel)
+    if (!live) {
+      floorData.failed = true
+      floorData.failReason = `${floorData.channel} went offline`
+      console.log(`[FLOOR] ${floorData.channel} failed: stream offline`)
+    } else if (live.viewers < floorData.floorThreshold) {
+      floorData.failed = true
+      floorData.failReason = `Viewers dropped to ${live.viewers.toLocaleString()} (floor: ${floorData.floorThreshold.toLocaleString()})`
+      console.log(`[FLOOR] ${floorData.channel} failed: ${live.viewers} < ${floorData.floorThreshold}`)
+    }
+  }
+
+  // Create standard bets for new live casino streamers
+  for (const streamer of liveStreamers) {
+    if (!sessionBetsCreated.has(streamer.channel) && getStreamContentType(streamer) === 'casino') {
+      sessionBetsCreated.add(streamer.channel)
+      await createStandardBets(streamer.channel, streamer)
+      await new Promise(r => setTimeout(r, 3000))
+    }
+  }
 
   // Sync top 10 to Supabase
   try {
