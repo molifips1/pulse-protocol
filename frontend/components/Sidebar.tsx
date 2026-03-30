@@ -28,11 +28,9 @@ export function Sidebar() {
       background: '#F7F8FA',
       display: 'flex',
       flexDirection: 'column',
-      position: 'fixed',
+      position: 'sticky',
       top: 0,
-      left: 0,
-      bottom: 0,
-      zIndex: 40,
+      height: '100vh',
     }}>
       {/* Logo */}
       <div style={{ padding: '20px 20px 8px' }}>
