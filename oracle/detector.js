@@ -288,22 +288,17 @@ Respond ONLY with JSON (no markdown, no explanation):
   return null
 }
 
-// Check Supabase for existing open markets for this channel to prevent duplicates
-async function hasOpenMarket(channel) {
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return false
+// Returns how many open markets this channel already has
+async function countOpenMarkets(channel) {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return 0
   try {
-    const url = `${SUPABASE_URL}/rest/v1/markets?stream_id=not.is.null&status=eq.open&title=ilike.*${encodeURIComponent(channel)}*&select=id&limit=1`
-    // Use title match as proxy since stream_id linkage is unreliable
-    const titleUrl = `${SUPABASE_URL}/rest/v1/markets?status=in.(open,locked)&title=ilike.*${encodeURIComponent(channel)}*&select=id&limit=1`
+    const titleUrl = `${SUPABASE_URL}/rest/v1/markets?status=in.(open,locked)&title=ilike.*${encodeURIComponent(channel)}*&select=id`
     const result = await fetchJson(titleUrl, {
-      headers: {
-        'apikey': SUPABASE_SERVICE_KEY,
-        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`
-      }
+      headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}` }
     })
-    return result.status === 200 && Array.isArray(result.data) && result.data.length > 0
+    return result.status === 200 && Array.isArray(result.data) ? result.data.length : 0
   } catch (e) {
-    return false
+    return 0
   }
 }
 
@@ -326,45 +321,32 @@ function extractGameFromTitle(title) {
   return m ? m[1].trim() : null
 }
 
-async function generateMarketWithGroq(channel, streamInfo) {
+async function generateMarketWithGroq(channel, streamInfo, betType) {
   if (!GROQ_API_KEY) return null
 
-  const gameCategory = getGameCategory(streamInfo.category)
   const detectedGame = extractGameFromTitle(streamInfo.title)
+  const gameRef = detectedGame ? `"${detectedGame}"` : 'their current casino game'
 
-  // Pick a random bet type for variety
-  const betTypes = ['big_win', 'multiplier', 'bonus', 'viewer_spike', 'game_change']
-  const betType = betTypes[Math.floor(Math.random() * betTypes.length)]
-
-  const gameContext = detectedGame
-    ? `The streamer appears to be playing: "${detectedGame}"`
-    : `Stream title: "${streamInfo.title}"`
-
-  const betTypePrompts = {
-    big_win: `Create a market about whether they will hit a BIG WIN (typically 100x+ bet) in the next 5 minutes.`,
-    multiplier: `Create a market about a specific multiplier milestone (e.g. "Will they hit above 50x?", "Will they get a 100x+ multiplier?").`,
-    bonus: `Create a market about whether they will trigger a bonus round / free spins in the next 5 minutes.`,
-    viewer_spike: `Create a market about a viewer count spike — big wins attract viewers. Will viewers increase by 10%+?`,
-    game_change: `Create a market about whether the streamer will switch to a different game/slot in the next 5 minutes.`,
+  const typeInstructions = {
+    big_win:     { label: 'BIG WIN',      example: `"Will ${streamInfo.streamer_name} hit a mega win above 500x on ${gameRef} in the next 5 mins?"`,    verification_type: 'win_event' },
+    multiplier:  { label: 'MULTIPLIER',   example: `"Will ${streamInfo.streamer_name} land a 100x+ multiplier on ${gameRef} in the next 5 mins?"`,       verification_type: 'win_event' },
+    bonus:       { label: 'BONUS ROUND',  example: `"Will ${streamInfo.streamer_name} trigger Free Spins / Bonus on ${gameRef} in the next 5 mins?"`,    verification_type: 'win_event' },
+    viewer_spike:{ label: 'VIEWER SPIKE', example: `"Will ${streamInfo.streamer_name}'s viewers spike 10%+ in the next 5 mins?"`,                        verification_type: 'viewer_count' },
+    game_change: { label: 'GAME CHANGE',  example: `"Will ${streamInfo.streamer_name} switch to a different slot in the next 5 mins?"`,                  verification_type: 'title_change' },
   }
 
-  const prompt = `You are generating prediction markets for a live casino stream on Kick.com.
+  const t = typeInstructions[betType]
+  const prompt = `Generate a yes/no prediction market for a LIVE CASINO STREAM.
 
-Streamer: ${streamInfo.streamer_name}
-${gameContext}
-Category: ${streamInfo.category_name}
-Current viewers: ${streamInfo.viewers}
+TYPE: ${t.label} — you MUST create a ${t.label} market, nothing else.
+Streamer: ${streamInfo.streamer_name} | Stream title: "${streamInfo.title}" | Viewers: ${streamInfo.viewers}
 
-${betTypePrompts[betType]}
+EXAMPLE of correct output for ${t.label}:
+${t.example}
 
-Make the market title SPECIFIC and EXCITING. Use the game name if known. Avoid generic phrases.
-Good examples:
-- "Will ${streamInfo.streamer_name} hit 100x+ on Sweet Bonanza in the next 5 mins?"
-- "Will ${streamInfo.streamer_name} trigger Free Spins in the next 5 mins?"
-- "Will ${streamInfo.streamer_name} switch slots in the next 5 mins?"
-
-Respond ONLY with JSON (no markdown):
-{"event_type":"${betType}","market_title":"Will ...?","confidence":0.5,"verification_type":"win_event","threshold":${streamInfo.viewers}}`
+Rules: be specific, exciting, use the game name if visible in the title.
+Respond ONLY with this exact JSON (no markdown, no extra text):
+{"event_type":"${betType}","market_title":"Will ...?","confidence":0.55,"verification_type":"${t.verification_type}","threshold":${streamInfo.viewers}}`
 
   try {
     const result = await fetchJson(
@@ -376,8 +358,8 @@ Respond ONLY with JSON (no markdown):
       {
         model: 'llama-3.3-70b-versatile',
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: 150,
-        temperature: 0.9
+        max_tokens: 120,
+        temperature: 1.0
       }
     )
     if (result.status === 200) {
@@ -614,31 +596,35 @@ async function mainLoop() {
   for (const streamer of liveStreamers.slice(0, 10)) {
     const lastMarket = marketCooldowns.get(streamer.channel) || 0
     const cooldownOk = (Date.now() - lastMarket) > MARKET_COOLDOWN
-
     if (!cooldownOk) continue
 
-    // Check DB for existing open market to prevent duplicates across restarts
-    const alreadyOpen = await hasOpenMarket(streamer.channel)
-    if (alreadyOpen) {
-      console.log(`[DETECTOR] Skipping ${streamer.channel} — market already open`)
+    // Allow up to 3 concurrent bets per streamer (different types)
+    const openCount = await countOpenMarkets(streamer.channel)
+    if (openCount >= 3) {
+      console.log(`[DETECTOR] Skipping ${streamer.channel} — ${openCount} markets already open`)
       marketCooldowns.set(streamer.channel, Date.now())
       continue
     }
 
-    console.log(`[DETECTOR] Generating market for ${streamer.channel}...`)
+    // Pick 3 distinct bet types, generate whichever slots are still empty
+    const allTypes = ['big_win', 'bonus', 'game_change', 'multiplier', 'viewer_spike']
+    const typesToGenerate = allTypes.slice(0, 3 - openCount)
 
-    // Try vision-based market generation first (sees actual stream content)
-    let event = await generateMarketWithVision(streamer.channel, streamer)
-    // Fall back to Groq text-only if vision fails or not configured
-    if (!event) event = await generateMarketWithGroq(streamer.channel, streamer)
+    console.log(`[DETECTOR] Generating ${typesToGenerate.length} market(s) for ${streamer.channel}...`)
 
-    if (event && event.market_title) {
-      console.log(`[DETECTOR] ${event.market_title}`)
-      const success = await fireMarketCreation(streamer.channel, streamer, event, streamer.chatRoomId)
-      if (success) marketCooldowns.set(streamer.channel, Date.now())
+    for (const betType of typesToGenerate) {
+      let event = await generateMarketWithVision(streamer.channel, streamer)
+      if (!event) event = await generateMarketWithGroq(streamer.channel, streamer, betType)
+
+      if (event && event.market_title) {
+        console.log(`[DETECTOR] [${betType}] ${event.market_title}`)
+        await fireMarketCreation(streamer.channel, streamer, event, streamer.chatRoomId)
+      }
+      await new Promise(r => setTimeout(r, 2000))
     }
 
-    await new Promise(r => setTimeout(r, 3000))
+    marketCooldowns.set(streamer.channel, Date.now())
+    await new Promise(r => setTimeout(r, 1000))
   }
 }
 
