@@ -240,15 +240,15 @@ export function BetWidget({ market, expired, onSuccess }: Props) {
 
       <button
         onClick={handleBet}
-        disabled={expired || !amountUsdc}
+        disabled={expired || (isConnected && !amountUsdc)}
         style={{
           width: '100%', padding: '12px', borderRadius: '8px', border: 'none',
-          background: expired || !amountUsdc
+          background: expired || (isConnected && !amountUsdc)
             ? '#F3F4F6'
             : betSide === 'yes' ? '#2563EB' : '#DC2626',
-          color: expired || !amountUsdc ? '#9CA3AF' : 'white',
+          color: expired || (isConnected && !amountUsdc) ? '#9CA3AF' : 'white',
           fontWeight: '700', fontSize: '14px', letterSpacing: '0.04em',
-          cursor: expired || !amountUsdc ? 'not-allowed' : 'pointer',
+          cursor: expired || (isConnected && !amountUsdc) ? 'not-allowed' : 'pointer',
           transition: 'opacity 0.15s',
         }}
       >
