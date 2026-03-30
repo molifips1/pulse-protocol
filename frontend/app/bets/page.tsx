@@ -13,7 +13,7 @@ type Tab = 'active' | 'settled' | 'all'
 export default function BetsPage() {
   const { isConnected } = useAccount()
   const { openConnectModal } = useConnectModal()
-  const { bets, activeBets, settledBets, totalWon, loading, fetchError, debugInfo, refetch } = useUserBets()
+  const { bets, activeBets, settledBets, totalWon, loading, fetchError, refetch } = useUserBets()
   const [tab, setTab] = useState<Tab>('active')
 
   const totalWagered = bets.reduce((s, b) => s + b.amount_usdc, 0)
@@ -28,16 +28,6 @@ export default function BetsPage() {
         color: 'var(--text)', marginBottom: '12px',
       }}>My Bets</h1>
 
-      {debugInfo && (
-        <div style={{
-          background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.25)',
-          borderRadius: '8px', padding: '8px 12px', marginBottom: '16px',
-          fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--muted)',
-          wordBreak: 'break-all',
-        }}>
-          {debugInfo}
-        </div>
-      )}
 
       {!isConnected ? (
         <div style={{ textAlign: 'center', padding: '80px 0' }}>

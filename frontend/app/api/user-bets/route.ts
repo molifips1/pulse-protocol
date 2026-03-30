@@ -1,0 +1,23 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_KEY!
+)
+
+export async function GET(req: NextRequest) {
+  const wallet = req.nextUrl.searchParams.get('wallet')
+  if (!wallet) return NextResponse.json({ error: 'Missing wallet' }, { status: 400 })
+
+  const { data, error } = await supabase
+    .from('bets')
+    .select('*, markets(title, status, outcome, category, closes_at, streams(stream_key))')
+    .eq('wallet_address', wallet.toLowerCase())
+    .order('placed_at', { ascending: false, nullsFirst: false })
+    .limit(50)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  return NextResponse.json({ bets: data || [] })
+}

@@ -8,7 +8,7 @@ const supabase = createClient(
 
 // POST /api/bet — called after on-chain tx confirmed
 export async function POST(req: NextRequest) {
-  const { marketId, walletAddress, side, amountUsdc, oddsAtPlacement, potentialPayout, txHash } = await req.json()
+  const { marketId, walletAddress, side, amountUsdc, oddsAtPlacement, potentialPayout, txHash, contractBetId } = await req.json()
 
   if (!marketId || !walletAddress || !side || !amountUsdc || !txHash) {
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
@@ -55,7 +55,9 @@ export async function POST(req: NextRequest) {
     odds_at_placement: oddsAtPlacement,
     potential_payout_usdc: potentialPayout,
     status: 'confirmed',
-    tx_hash: txHash
+    tx_hash: txHash,
+    contract_bet_id: contractBetId || null,
+    placed_at: new Date().toISOString(),
   }).select().single()
 
   if (error) {
@@ -66,12 +68,12 @@ export async function POST(req: NextRequest) {
   }
 
   // Update market liquidity totals
-  const field = side === 'yes' ? 'total_yes_usdc' : 'total_no_usdc'
-  await supabase.rpc('increment_market_liquidity', {
-    p_market_id: marketId,
-    p_side: side,
-    p_amount: amountUsdc
-  })
+  const { data: freshMarket } = await supabase
+    .from('markets').select('total_yes_usdc, total_no_usdc').eq('id', marketId).single()
+  const poolUpdate = side === 'yes'
+    ? { total_yes_usdc: (freshMarket?.total_yes_usdc || 0) + amountUsdc }
+    : { total_no_usdc: (freshMarket?.total_no_usdc || 0) + amountUsdc }
+  await supabase.from('markets').update(poolUpdate).eq('id', marketId)
 
   return NextResponse.json({ success: true, betId: bet.id })
 }

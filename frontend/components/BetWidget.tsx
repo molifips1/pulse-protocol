@@ -4,7 +4,6 @@ import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadCont
 import { simulateContract } from '@wagmi/core'
 import { parseUnits, maxUint256 } from 'viem'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
-import { supabase } from '../lib/supabase'
 import { VAULT_ADDRESS, USDC_ADDRESS, VAULT_ABI, ERC20_ABI } from '../lib/wagmi'
 import { calcOdds } from '../lib/utils'
 
@@ -97,32 +96,24 @@ export function BetWidget({ market, expired, onSuccess }: Props) {
   const saveBet = async (txHash: string) => {
     if (!address) return
     try {
-      await supabase.from('users').upsert(
-        { wallet_address: address.toLowerCase(), last_seen_at: new Date().toISOString() },
-        { onConflict: 'wallet_address', ignoreDuplicates: false }
-      )
-      const { data: user } = await supabase.from('users').select('id').eq('wallet_address', address.toLowerCase()).single()
-      await supabase.from('bets').insert({
-        market_id: market.id,
-        user_id: user?.id,
-        wallet_address: address.toLowerCase(),
-        side: betSide,
-        amount_usdc: amountUsdc,
-        odds_at_placement: selectedOdds,
-        potential_payout_usdc: parseFloat(potentialPayout),
-        status: 'confirmed',
-        tx_hash: txHash,
-        contract_bet_id: contractBetIdRef.current,
-        placed_at: new Date().toISOString(),
+      const res = await fetch('/api/bet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          marketId: market.id,
+          walletAddress: address,
+          side: betSide,
+          amountUsdc,
+          oddsAtPlacement: selectedOdds,
+          potentialPayout: parseFloat(potentialPayout),
+          txHash,
+          contractBetId: contractBetIdRef.current,
+        }),
       })
-
-      // Update market pool totals so odds + volume reflect the new bet immediately
-      const { data: freshMarket } = await supabase
-        .from('markets').select('total_yes_usdc, total_no_usdc').eq('id', market.id).single()
-      const poolUpdate = betSide === 'yes'
-        ? { total_yes_usdc: (freshMarket?.total_yes_usdc || 0) + amountUsdc }
-        : { total_no_usdc: (freshMarket?.total_no_usdc || 0) + amountUsdc }
-      await supabase.from('markets').update(poolUpdate).eq('id', market.id)
+      if (!res.ok) {
+        const err = await res.json()
+        console.error('Save bet error:', err)
+      }
     } catch (e) { console.error('Save error:', e) }
     setStep('done')
     setTimeout(() => { setStep('input'); setAmount(''); onSuccess() }, 2000)
