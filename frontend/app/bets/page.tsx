@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useUserBets } from '../../hooks/useUserBets'
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
@@ -103,7 +103,9 @@ function BetCard({ bet, onClaimed }: { bet: any; onClaimed: () => void }) {
   const { writeContract, data: txHash, isPending } = useWriteContract()
   const { isSuccess } = useWaitForTransactionReceipt({ hash: txHash })
 
-  if (isSuccess) onClaimed()
+  useEffect(() => {
+    if (isSuccess) onClaimed()
+  }, [isSuccess]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleClaim = () => {
     writeContract({
@@ -153,24 +155,24 @@ function BetCard({ bet, onClaimed }: { bet: any; onClaimed: () => void }) {
             padding: '3px 10px', borderRadius: '6px', fontSize: '12px', fontWeight: '700', fontFamily: 'var(--font-mono)',
             background: bet.side === 'yes' ? '#EFF6FF' : '#FEF2F2',
             color: bet.side === 'yes' ? '#2563EB' : '#DC2626',
-          }}>{bet.side.toUpperCase()}</span>
+          }}>{(bet.side || '').toUpperCase()}</span>
           <span style={{ color: '#111827', fontSize: '13px', fontFamily: 'var(--font-mono)', fontWeight: '600' }}>
             ${bet.amount_usdc.toFixed(2)}
           </span>
           <span style={{ color: '#9CA3AF', fontSize: '12px', fontFamily: 'var(--font-mono)' }}>
-            ×{bet.odds_at_placement?.toFixed(2) || '—'} → ${bet.potential_payout_usdc?.toFixed(2)}
+            ×{bet.odds_at_placement?.toFixed(2) || '—'} → ${bet.potential_payout_usdc?.toFixed(2) ?? '—'}
           </span>
         </div>
 
         {/* Right: status + time + claim */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ color: '#9CA3AF', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>
-            {formatDistanceToNow(new Date(bet.placed_at), { addSuffix: true })}
+            {bet.placed_at ? formatDistanceToNow(new Date(bet.placed_at), { addSuffix: true }) : '—'}
           </span>
           <span style={{
             padding: '2px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', fontFamily: 'var(--font-mono)',
             background: ss.bg, border: `1px solid ${ss.border}`, color: ss.color,
-          }}>{bet.status.toUpperCase()}</span>
+          }}>{(bet.status || '').toUpperCase()}</span>
           {canClaim && (
             <button
               onClick={handleClaim}
