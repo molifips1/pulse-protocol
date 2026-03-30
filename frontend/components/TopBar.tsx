@@ -15,12 +15,11 @@ export function TopBar() {
         position: 'sticky',
         top: 0,
         zIndex: 50,
-        display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: '0 16px',
         height: '56px',
-      }} className="lg:hidden">
+      }} className="flex lg:hidden">
         <Link href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <div style={{
             width: '28px', height: '28px', background: '#EF4444', borderRadius: '6px',
@@ -52,7 +51,6 @@ export function TopBar() {
         borderBottom: '1px solid #E5E7EB',
         padding: '0 32px',
         height: '52px',
-        display: 'flex',
         alignItems: 'center',
         justifyContent: 'flex-end',
         background: '#FFFFFF',
