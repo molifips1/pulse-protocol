@@ -1,7 +1,6 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { useEffect, useState } from 'react'
 
 export function Sidebar() {
@@ -85,12 +84,11 @@ export function Sidebar() {
           display: 'flex', alignItems: 'center', gap: '6px',
           padding: '6px 10px',
           background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)',
-          borderRadius: '8px', marginBottom: '12px',
+          borderRadius: '8px',
         }}>
           <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--green)', display: 'inline-block', flexShrink: 0 }} />
           <span style={{ color: 'var(--green)', fontSize: '11px', fontFamily: 'var(--font-mono)', fontWeight: '600' }}>Base Sepolia</span>
         </div>
-        <ConnectButton showBalance={false} chainStatus="none" accountStatus="avatar" />
       </div>
     </aside>
   )

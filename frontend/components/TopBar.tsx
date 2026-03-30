@@ -22,6 +22,7 @@ export function TopBar() {
         padding: '0 32px', height: '52px',
         display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
         background: 'var(--surface)', flexShrink: 0,
+        position: 'sticky', top: 0, zIndex: 30,
       }}>
         <ConnectButton showBalance={false} chainStatus="none" accountStatus="avatar" />
       </div>
