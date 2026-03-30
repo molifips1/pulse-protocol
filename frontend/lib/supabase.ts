@@ -56,6 +56,7 @@ export interface Streamer {
 export interface Bet {
   id: string
   market_id: string
+  user_id?: string
   wallet_address: string
   side: BetSide
   amount_usdc: number
@@ -63,5 +64,7 @@ export interface Bet {
   potential_payout_usdc: number
   status: string
   tx_hash?: string
-  placed_at: string
+  contract_bet_id?: string
+  placed_at?: string
+  created_at?: string
 }

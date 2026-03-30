@@ -13,7 +13,7 @@ type Tab = 'active' | 'settled' | 'all'
 export default function BetsPage() {
   const { isConnected } = useAccount()
   const { openConnectModal } = useConnectModal()
-  const { bets, activeBets, settledBets, totalWon, loading, refetch } = useUserBets()
+  const { bets, activeBets, settledBets, totalWon, loading, fetchError, debugInfo, refetch } = useUserBets()
   const [tab, setTab] = useState<Tab>('active')
 
   const totalWagered = bets.reduce((s, b) => s + b.amount_usdc, 0)
@@ -25,8 +25,19 @@ export default function BetsPage() {
     <div style={{ maxWidth: '720px', margin: '0 auto', padding: '32px 24px' }}>
       <h1 style={{
         fontSize: '22px', fontFamily: 'var(--font-display)', fontWeight: 800,
-        color: 'var(--text)', marginBottom: '20px',
+        color: 'var(--text)', marginBottom: '12px',
       }}>My Bets</h1>
+
+      {debugInfo && (
+        <div style={{
+          background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.25)',
+          borderRadius: '8px', padding: '8px 12px', marginBottom: '16px',
+          fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--muted)',
+          wordBreak: 'break-all',
+        }}>
+          {debugInfo}
+        </div>
+      )}
 
       {!isConnected ? (
         <div style={{ textAlign: 'center', padding: '80px 0' }}>
@@ -44,6 +55,15 @@ export default function BetsPage() {
           {[...Array(3)].map((_, i) => (
             <div key={i} className="skel" style={{ height: '80px' }} />
           ))}
+        </div>
+      ) : fetchError ? (
+        <div style={{ textAlign: 'center', padding: '48px 0' }}>
+          <p style={{ color: 'var(--no)', fontSize: '14px', marginBottom: '8px' }}>Failed to load bets</p>
+          <p style={{ color: 'var(--muted)', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '16px' }}>{fetchError}</p>
+          <button
+            onClick={refetch}
+            style={{ padding: '8px 20px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text)', cursor: 'pointer', fontSize: '13px' }}
+          >Retry</button>
         </div>
       ) : (
         <>
@@ -119,7 +139,7 @@ function BetCard({ bet, onClaimed }: { bet: any; onClaimed: () => void }) {
     })
   }
 
-  const canClaim = (bet.status === 'won' || bet.status === 'refunded') && !isSuccess && bet.contract_bet_id
+  const canClaim = (bet.status === 'won' || bet.status === 'refunded') && !isSuccess && !!bet.contract_bet_id
   const market = bet.markets
   const channel = market?.streams?.stream_key || (market?.title ? getStreamerFromTitle(market.title) : null)
   const marketExpired = market?.closes_at ? isPast(new Date(market.closes_at)) : false
@@ -169,7 +189,7 @@ function BetCard({ bet, onClaimed }: { bet: any; onClaimed: () => void }) {
         {/* Right: status + time + claim */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ color: 'var(--dim)', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>
-            {bet.placed_at ? formatDistanceToNow(new Date(bet.placed_at), { addSuffix: true }) : '—'}
+            {(bet.placed_at || bet.created_at) ? formatDistanceToNow(new Date(bet.placed_at || bet.created_at!), { addSuffix: true }) : '—'}
           </span>
           <span style={{
             padding: '2px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', fontFamily: 'var(--font-mono)',
