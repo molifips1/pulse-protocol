@@ -113,7 +113,16 @@ export function BetWidget({ market, expired, onSuccess }: Props) {
         status: 'confirmed',
         tx_hash: txHash,
         contract_bet_id: contractBetIdRef.current,
+        placed_at: new Date().toISOString(),
       })
+
+      // Update market pool totals so odds + volume reflect the new bet immediately
+      const { data: freshMarket } = await supabase
+        .from('markets').select('total_yes_usdc, total_no_usdc').eq('id', market.id).single()
+      const poolUpdate = betSide === 'yes'
+        ? { total_yes_usdc: (freshMarket?.total_yes_usdc || 0) + amountUsdc }
+        : { total_no_usdc: (freshMarket?.total_no_usdc || 0) + amountUsdc }
+      await supabase.from('markets').update(poolUpdate).eq('id', market.id)
     } catch (e) { console.error('Save error:', e) }
     setStep('done')
     setTimeout(() => { setStep('input'); setAmount(''); onSuccess() }, 2000)
