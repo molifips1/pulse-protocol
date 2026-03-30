@@ -8,22 +8,24 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        display: ['var(--font-display)'],
         mono: ['var(--font-mono)', 'monospace'],
       },
       colors: {
-        pulse: {
-          red: '#FF2D55',
-          green: '#00F5A0',
-          gold: '#FFD60A',
-          dark: '#080810',
-          card: '#0E0E1A',
-          border: '#1A1A2E',
-          muted: '#3A3A5C',
+        pm: {
+          bg: '#FFFFFF',
+          surface: '#F7F8FA',
+          border: '#E5E7EB',
+          text: '#111827',
+          muted: '#6B7280',
+          accent: '#6366F1',
+          'live-red': '#EF4444',
+          'yes-bg': '#EFF6FF',
+          'yes': '#2563EB',
+          'no-bg': '#FEF2F2',
+          'no': '#DC2626',
         }
       },
       animation: {
-        'pulse-fast': 'pulse 0.8s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'slide-up': 'slideUp 0.4s ease-out',
         'fade-in': 'fadeIn 0.3s ease-out',
       },
@@ -34,28 +36,4 @@ module.exports = {
     }
   },
   plugins: [],
-  safelist: [
-    'bg-green-500',
-    'bg-red-500',
-    'text-green-400',
-    'text-red-400',
-    'border-green-500',
-    'border-red-500',
-    'bg-green-500/15',
-    'bg-red-500/15',
-    'border-green-500/30',
-    'border-red-500/30',
-    'hover:bg-green-500/25',
-    'hover:bg-red-500/25',
-    'hover:border-green-500',
-    'hover:border-red-500',
-    'aspect-video',
-    'object-cover',
-    'rounded-xl',
-    'rounded-lg',
-    'grid-cols-1',
-    'sm:grid-cols-2',
-    'lg:grid-cols-3',
-    'xl:grid-cols-4',
-  ]
 }
