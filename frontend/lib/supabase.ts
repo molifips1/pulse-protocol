@@ -16,7 +16,7 @@ export interface Market {
   title: string
   description?: string
   event_type: string
-  category: 'fps' | 'irl' | 'sports' | 'other'
+  category: 'casino' | 'fps' | 'irl' | 'sports' | 'other'
   status: MarketStatus
   outcome?: Outcome
   opens_at: string

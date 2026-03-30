@@ -6,9 +6,9 @@ import { StreamerCard } from './StreamerCard'
 import { getStreamerFromTitle, KNOWN_STREAMERS } from '../lib/utils'
 
 const FILTERS = [
+  { key: 'casino', label: 'Casino' },
   { key: 'all', label: 'All' },
   { key: 'fps', label: 'FPS' },
-  { key: 'irl', label: 'IRL' },
   { key: 'sports', label: 'Sports' },
 ]
 
@@ -16,7 +16,7 @@ export function LiveMarketsGrid() {
   const router = useRouter()
   const [markets, setMarkets] = useState<Market[]>([])
   const [liveStreams, setLiveStreams] = useState<{ channel: string; viewers: number; thumbnail: string | null }[]>([])
-  const [filter, setFilter] = useState('all')
+  const [filter, setFilter] = useState('casino')
   const [loading, setLoading] = useState(true)
 
   const fetchData = async () => {
@@ -54,6 +54,7 @@ export function LiveMarketsGrid() {
   }
 
   // Merge live streams + market-only streamers
+  // When a specific category is active, only show channels that have markets in that category
   const allChannels: string[] = []
   const seen = new Set<string>()
   for (const s of liveStreams) {
@@ -62,6 +63,9 @@ export function LiveMarketsGrid() {
   for (const key of streamerMap.keys()) {
     if (!seen.has(key)) { allChannels.push(key); seen.add(key) }
   }
+  const filteredChannels = filter === 'all'
+    ? allChannels
+    : allChannels.filter(ch => streamerMap.has(ch))
 
   const liveMap = new Map(liveStreams.map(s => [s.channel, s]))
 
@@ -102,7 +106,7 @@ export function LiveMarketsGrid() {
             <div key={i} className="skel" style={{ height: '280px' }} />
           ))}
         </div>
-      ) : allChannels.length === 0 ? (
+      ) : filteredChannels.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '80px 0' }}>
           <div style={{ fontSize: '40px', marginBottom: '12px', opacity: 0.3 }}>📡</div>
           <p style={{ color: 'var(--text)', fontSize: '16px', fontFamily: 'var(--font-display)', fontWeight: 700, marginBottom: '6px' }}>
@@ -114,7 +118,7 @@ export function LiveMarketsGrid() {
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
-          {allChannels.map(channel => {
+          {filteredChannels.map(channel => {
             const live = liveMap.get(channel)
             return (
               <StreamerCard
