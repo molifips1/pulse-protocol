@@ -70,7 +70,7 @@ export function StreamerMarketsModal({ channel, markets: initialMarkets, onClose
       <div style={{
         background: '#0D1117',
         width: '100%',
-        maxWidth: '1100px',
+        maxWidth: '900px',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
@@ -110,15 +110,10 @@ export function StreamerMarketsModal({ channel, markets: initialMarkets, onClose
           </button>
         </div>
 
-        {/* Body: stream + markets side by side */}
-        <div style={{
-          display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0,
-        }}>
+        {/* Body: stream on top, markets below */}
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', minHeight: 0 }}>
           {/* Stream */}
-          <div style={{
-            flex: '0 0 55%', background: '#000',
-            position: 'relative',
-          }}>
+          <div style={{ background: '#000', flexShrink: 0, aspectRatio: '16/9', width: '100%' }}>
             <iframe
               src={`https://player.kick.com/${channel}?autoplay=true&muted=false&parent=pulse-protocol1.vercel.app`}
               style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
@@ -137,13 +132,15 @@ export function StreamerMarketsModal({ channel, markets: initialMarkets, onClose
             <p style={{ color: '#6B7280', fontSize: '11px', fontFamily: 'monospace', textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 4px' }}>
               {markets.length} Active Market{markets.length !== 1 ? 's' : ''}
             </p>
-            {markets.map(market => (
-              <MarketRow
-                key={market.id}
-                market={market}
-                onBet={(side, odds) => handleBet(market, side, odds)}
-              />
-            ))}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '10px' }}>
+              {markets.map(market => (
+                <MarketRow
+                  key={market.id}
+                  market={market}
+                  onBet={(side, odds) => handleBet(market, side, odds)}
+                />
+              ))}
+            </div>
           </div>
         </div>
       </div>
