@@ -19,7 +19,7 @@ export function TopBar() {
     return (
       <div style={{
         borderBottom: '1px solid var(--border)',
-        padding: '0 32px', height: '52px',
+        padding: '0 32px', height: '64px',
         display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
         background: 'var(--surface)', flexShrink: 0,
         position: 'sticky', top: 0, zIndex: 30,
