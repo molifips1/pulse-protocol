@@ -14,8 +14,10 @@ export async function GET(req: NextRequest) {
     .from('bets')
     .select('*, markets(title, status, outcome, category, closes_at, streams(stream_key))')
     .eq('wallet_address', wallet.toLowerCase())
-    .order('placed_at', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false })
     .limit(50)
+
+  console.log(`[user-bets] wallet=${wallet.toLowerCase()} count=${data?.length ?? 'null'} error=${error?.message ?? 'none'}`)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
