@@ -229,6 +229,25 @@ async function fetchThumbnailBase64(url) {
   } catch { return null }
 }
 
+// Category-aware bet types
+const CATEGORY_TYPES = {
+  casino: ['big_win', 'bonus', 'multiplier', 'game_change', 'viewer_spike'],
+  fps:    ['kill_streak', 'win_round', 'clutch_play', 'game_change', 'viewer_spike'],
+  sports: ['score_goal', 'win_match', 'big_play', 'game_change', 'viewer_spike'],
+  irl:    ['viewer_spike', 'donation_goal', 'raid_incoming', 'react_moment', 'game_change'],
+  other:  ['viewer_spike', 'game_change', 'hype_moment', 'donation_goal', 'clip_moment'],
+}
+
+function getStreamContentType(streamInfo) {
+  const cat = (streamInfo.category || '').toLowerCase()
+  const title = (streamInfo.title || '').toLowerCase()
+  if (['slots', 'casino', 'poker', 'gambling', 'blackjack', 'roulette'].some(k => cat.includes(k) || title.includes(k))) return 'casino'
+  if (['valorant', 'counter-strike', 'apex', 'overwatch', 'call-of-duty', 'fortnite', 'fps'].some(k => cat.includes(k))) return 'fps'
+  if (['fifa', 'nba-2k', 'rocket-league', 'madden', 'football', 'sports'].some(k => cat.includes(k))) return 'sports'
+  if (['just-chatting', 'irl', 'talk-shows'].some(k => cat.includes(k))) return 'irl'
+  return 'other'
+}
+
 // Generate market using Claude Vision — sees what's actually on screen
 async function generateMarketWithVision(channel, streamInfo) {
   if (!ANTHROPIC_API_KEY) return null
@@ -238,12 +257,17 @@ async function generateMarketWithVision(channel, streamInfo) {
   const imageBase64 = await fetchThumbnailBase64(streamInfo.thumbnail)
   if (!imageBase64) return null
 
-  const prompt = `You are watching a live casino/gambling stream on Kick.com.
-Streamer: ${streamInfo.streamer_name} | Title: "${streamInfo.title}" | Viewers: ${streamInfo.viewers}
+  const prompt = `You are watching a live stream on Kick.com.
+Streamer: ${streamInfo.streamer_name} | Category: "${streamInfo.category_name}" | Title: "${streamInfo.title}" | Viewers: ${streamInfo.viewers}
 
 Look at this stream screenshot and create ONE specific yes/no prediction market that resolves in 5 minutes.
-Be SPECIFIC about what you see: the slot game name, bet amount, multiplier, game being played, etc.
-Examples: "Will [game] hit above 10x in next 5 mins?", "Will streamer change to a new slot game?", "Will [streamer] win on [specific game] they're playing?"
+Base it on what is ACTUALLY happening on screen — do not assume it is a casino stream.
+Be specific: mention the game, activity, or event visible. Use the streamer's name.
+Examples by content type:
+- Casino/slots: "Will [streamer] hit above 500x on [game] in the next 5 mins?"
+- FPS game: "Will [streamer] get a 3+ kill streak in the next round?"
+- IRL/chatting: "Will [streamer]'s viewer count rise above [current+10%] in 5 mins?"
+- Other game: "Will [streamer] complete the current objective in [game] within 5 mins?"
 
 Respond ONLY with JSON (no markdown, no explanation):
 {"market_title":"Will ...?","event_type":"win_event","verification_type":"win_event","confidence":0.55,"threshold":${streamInfo.viewers}}`
@@ -332,26 +356,42 @@ async function generateMarketWithGroq(channel, streamInfo, betType) {
   if (!GROQ_API_KEY) return null
 
   const detectedGame = extractGameFromTitle(streamInfo.title)
-  const gameRef = detectedGame ? `"${detectedGame}"` : 'their current casino game'
+  const contentType = getStreamContentType(streamInfo)
+  const name = streamInfo.streamer_name
 
   const typeInstructions = {
-    big_win:     { label: 'BIG WIN',      example: `"Will ${streamInfo.streamer_name} hit a mega win above 500x on ${gameRef} in the next 5 mins?"`,    verification_type: 'win_event' },
-    multiplier:  { label: 'MULTIPLIER',   example: `"Will ${streamInfo.streamer_name} land a 100x+ multiplier on ${gameRef} in the next 5 mins?"`,       verification_type: 'win_event' },
-    bonus:       { label: 'BONUS ROUND',  example: `"Will ${streamInfo.streamer_name} trigger Free Spins / Bonus on ${gameRef} in the next 5 mins?"`,    verification_type: 'win_event' },
-    viewer_spike:{ label: 'VIEWER SPIKE', example: `"Will ${streamInfo.streamer_name}'s viewers spike 10%+ in the next 5 mins?"`,                        verification_type: 'viewer_count' },
-    game_change: { label: 'GAME CHANGE',  example: `"Will ${streamInfo.streamer_name} switch to a different slot in the next 5 mins?"`,                  verification_type: 'title_change' },
+    // Casino
+    big_win:       { label: 'BIG WIN',        example: `"Will ${name} hit a mega win above 500x on ${detectedGame ? `"${detectedGame}"` : 'their current slot'} in the next 5 mins?"`, verification_type: 'win_event' },
+    multiplier:    { label: 'MULTIPLIER',      example: `"Will ${name} land a 100x+ multiplier in the next 5 mins?"`,                                                                    verification_type: 'win_event' },
+    bonus:         { label: 'BONUS ROUND',     example: `"Will ${name} trigger Free Spins on ${detectedGame ? `"${detectedGame}"` : 'their current slot'} in the next 5 mins?"`,         verification_type: 'win_event' },
+    game_change:   { label: 'GAME CHANGE',     example: `"Will ${name} switch to a different game in the next 5 mins?"`,                                                                  verification_type: 'title_change' },
+    viewer_spike:  { label: 'VIEWER SPIKE',    example: `"Will ${name}'s viewer count increase 10%+ in the next 5 mins?"`,                                                               verification_type: 'viewer_count' },
+    // FPS
+    kill_streak:   { label: 'KILL STREAK',     example: `"Will ${name} get 3 or more kills in a single round in the next 5 mins?"`,                                                      verification_type: 'win_event' },
+    win_round:     { label: 'WIN ROUND',       example: `"Will ${name}'s team win the next round?"`,                                                                                      verification_type: 'win_event' },
+    clutch_play:   { label: 'CLUTCH PLAY',     example: `"Will ${name} clutch a 1v2 or better in the next 5 mins?"`,                                                                     verification_type: 'win_event' },
+    // Sports
+    score_goal:    { label: 'SCORE/GOAL',      example: `"Will ${name} score in the next 5 mins?"`,                                                                                       verification_type: 'win_event' },
+    win_match:     { label: 'WIN MATCH',       example: `"Will ${name} win their current match?"`,                                                                                         verification_type: 'win_event' },
+    big_play:      { label: 'BIG PLAY',        example: `"Will ${name} make a highlight-worthy play in the next 5 mins?"`,                                                                verification_type: 'win_event' },
+    // IRL / Other
+    donation_goal: { label: 'DONATION GOAL',   example: `"Will ${name} receive a $100+ donation in the next 5 mins?"`,                                                                   verification_type: 'viewer_count' },
+    raid_incoming: { label: 'RAID',            example: `"Will ${name} receive a raid in the next 5 mins?"`,                                                                               verification_type: 'viewer_count' },
+    react_moment:  { label: 'REACTION MOMENT', example: `"Will ${name} have a big reaction moment in the next 5 mins?"`,                                                                  verification_type: 'win_event' },
+    hype_moment:   { label: 'HYPE MOMENT',     example: `"Will ${name} trigger a hype train or celebration in the next 5 mins?"`,                                                         verification_type: 'viewer_count' },
+    clip_moment:   { label: 'CLIP MOMENT',     example: `"Will something clip-worthy happen on ${name}'s stream in the next 5 mins?"`,                                                    verification_type: 'win_event' },
   }
 
-  const t = typeInstructions[betType]
-  const prompt = `Generate a yes/no prediction market for a LIVE CASINO STREAM.
+  const t = typeInstructions[betType] || typeInstructions['viewer_spike']
+  const prompt = `Generate a yes/no prediction market for a LIVE STREAM on Kick.com.
 
-TYPE: ${t.label} — you MUST create a ${t.label} market, nothing else.
-Streamer: ${streamInfo.streamer_name} | Stream title: "${streamInfo.title}" | Viewers: ${streamInfo.viewers}
+TYPE: ${t.label} — create a ${t.label} market.
+Streamer: ${name} | Category: "${streamInfo.category_name}" | Title: "${streamInfo.title}" | Viewers: ${streamInfo.viewers}
 
-EXAMPLE of correct output for ${t.label}:
+EXAMPLE:
 ${t.example}
 
-Rules: be specific, exciting, use the game name if visible in the title.
+Rules: be specific to this streamer and their actual content. Do not use casino references for non-casino streams.
 Respond ONLY with this exact JSON (no markdown, no extra text):
 {"event_type":"${betType}","market_title":"Will ...?","confidence":0.55,"verification_type":"${t.verification_type}","threshold":${streamInfo.viewers}}`
 
@@ -616,8 +656,9 @@ async function mainLoop() {
       continue
     }
 
-    // Pick 3 distinct bet types, generate whichever slots are still empty
-    const allTypes = ['big_win', 'bonus', 'game_change', 'multiplier', 'viewer_spike']
+    // Pick bet types appropriate for this stream's content
+    const contentType = getStreamContentType(streamer)
+    const allTypes = CATEGORY_TYPES[contentType] || CATEGORY_TYPES.other
     const typesToGenerate = allTypes.slice(0, 3 - openCount)
 
     console.log(`[DETECTOR] Generating ${typesToGenerate.length} market(s) for ${streamer.channel}...`)
