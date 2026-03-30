@@ -565,7 +565,11 @@ async function mainLoop() {
 
   // Sort by viewers
   liveStreamers.sort((a, b) => (b.viewers || 0) - (a.viewers || 0))
-  liveStreamersCache = liveStreamers.slice(0, 10).map(s => ({ channel: s.channel, viewers: s.viewers || 0 }))
+  liveStreamersCache = liveStreamers.slice(0, 10).map(s => ({
+    channel: s.channel,
+    viewers: s.viewers || 0,
+    thumbnail: s.thumbnail || null,
+  }))
   console.log(`[DETECTOR] ${liveStreamers.length} streamers live:`)
   liveStreamers.slice(0, 5).forEach(s => console.log(`  - ${s.channel} (${s.viewers} viewers)`))
 
@@ -586,7 +590,7 @@ async function mainLoop() {
     await fetchJson(
       `${ORACLE_URL}/webhook/live-streamers-update`,
       { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-pulse-secret': WEBHOOK_SECRET } },
-      { streamers: liveStreamers.slice(0, 10).map(s => ({ channel: s.channel, viewers: s.viewers })) }
+      { streamers: liveStreamers.slice(0, 10).map(s => ({ channel: s.channel, viewers: s.viewers, thumbnail: s.thumbnail || null })) }
     )
   } catch (e) {
     // silent
