@@ -19,7 +19,6 @@ export function LiveMarketsGrid() {
       .from('markets')
       .select('*, streams(*, streamers(*))')
       .in('status', ['open', 'locked'])
-      .eq('category', 'casino')
       .order('created_at', { ascending: false })
       .limit(100)
     setMarkets(data || [])

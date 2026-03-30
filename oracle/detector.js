@@ -529,8 +529,7 @@ async function resolveMarket(market, currentStreamInfo) {
 }
 
 async function fireMarketCreation(channel, streamInfo, event, chatRoomId, bettingWindowSeconds = 300) {
-  const standardTypes = ['gifted_sub_marathon', 'viewer_floor']
-  const category = standardTypes.includes(event.event_type) ? 'casino' : getGameCategory(streamInfo.category)
+  const category = getGameCategory(streamInfo.category) || 'other'
   const payload = {
     streamId: channel,
     streamerId: null,
