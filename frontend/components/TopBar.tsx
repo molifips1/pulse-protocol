@@ -15,7 +15,18 @@ export function TopBar() {
     return () => window.removeEventListener('resize', check)
   }, [])
 
-  if (!isMobile) return null
+  if (!isMobile) {
+    return (
+      <div style={{
+        borderBottom: '1px solid var(--border)',
+        padding: '0 32px', height: '52px',
+        display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
+        background: 'var(--surface)', flexShrink: 0,
+      }}>
+        <ConnectButton showBalance={false} chainStatus="none" accountStatus="avatar" />
+      </div>
+    )
+  }
 
   return (
     <nav style={{
