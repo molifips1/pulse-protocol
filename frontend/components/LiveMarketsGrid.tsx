@@ -1,56 +1,28 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase, type Market } from '../lib/supabase'
 import { StreamerCard } from './StreamerCard'
-import { StreamerMarketsModal } from './StreamerMarketsModal'
-
-const KNOWN_STREAMERS = [
-  'trainwreckstv','haddzy','roshtein','xqc','adinross','mellstroy475','xposed',
-  'classybeef','stevewilldoit','casinodaddy','cheesur','caseoh','kingkulbik',
-  'ngslot','jarttu84','snikwins','gtasty','ac7ionman','westcol','elzeein',
-  'syztmz','mitchjones','corinnakopf','taour','tyceno','capatob','snutz',
-  'ilyaselmaliki','szymool','scurrows','lobanjicaa','teufeurs','deuceace','vondice',
-  'bougassaa','nahoule82k','vodkafunky','7idan7777','mathematicien','paymoneywubby',
-  'butisito','zonagemelosoficial','lospollosTV','letsgiveItaspin','striker6x6','rombears',
-  'real_bazzi','hunterowner','sniff','andymilonakis','orangemorange',
-  'stake','stakeus','nickslots','labowsky','bonusking','fruityslots','slotspinner',
-  'goonbags','nicks_slots','cg_cgaming','chipmonkz','casino_eric','slotlady',
-  'vegaslow','mrvegas','david_labowsky','bonanzas','spintwix','slotsfighter','casinogrounds',
-  'sweetflips','zubarefff45','wesbtw','blonderabbit','artemgraph',
-  'native_stream_192','aferist','generalqw77',
-]
-
-function getStreamerFromTitle(title: string): string | null {
-  const lower = title.toLowerCase()
-  // First try exact match from known list
-  const known = KNOWN_STREAMERS.find(s => lower.includes(s.toLowerCase()))
-  if (known) return known.toLowerCase()
-  // Fallback: extract name from "Will [name]'s ..." or "Will [name] ..."
-  const match = title.match(/^Will ([^'\s]+)(?:'s|\s)/i)
-  if (match) return match[1].toLowerCase()
-  return null
-}
+import { getStreamerFromTitle, KNOWN_STREAMERS } from '../lib/utils'
 
 const FILTERS = [
   { key: 'all', label: 'All' },
-  { key: 'fps', label: '🎯 FPS' },
-  { key: 'irl', label: '📡 IRL' },
-  { key: 'sports', label: '⚽ Sports' },
+  { key: 'fps', label: 'FPS' },
+  { key: 'irl', label: 'IRL' },
+  { key: 'sports', label: 'Sports' },
 ]
 
 export function LiveMarketsGrid() {
+  const router = useRouter()
   const [markets, setMarkets] = useState<Market[]>([])
-  const [liveStreams, setLiveStreams] = useState<{ channel: string; viewers: number }[]>([])
+  const [liveStreams, setLiveStreams] = useState<{ channel: string; viewers: number; thumbnail: string | null }[]>([])
   const [filter, setFilter] = useState('all')
   const [loading, setLoading] = useState(true)
-  const [activeStreamer, setActiveStreamer] = useState<string | null>(null)
 
   const fetchData = async () => {
-    // Fetch live streamers directly from Kick (bypasses broken streams table)
     const streamsRes = await fetch('/api/live-streamers').then(r => r.json()).catch(() => ({ streamers: [] }))
     setLiveStreams(streamsRes.streamers || [])
 
-    // Fetch open markets
     let query = supabase
       .from('markets')
       .select('*, streams(*, streamers(*))')
@@ -68,12 +40,11 @@ export function LiveMarketsGrid() {
     const channel = supabase.channel('markets-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'markets' }, fetchData)
       .subscribe()
-    // Refresh live streams every 60s (oracle updates every ~60s)
     const streamPoll = setInterval(fetchData, 60_000)
     return () => { supabase.removeChannel(channel); clearInterval(streamPoll) }
   }, [filter])
 
-  // Build streamer map from markets
+  // Build streamer → markets map
   const streamerMap = new Map<string, Market[]>()
   for (const market of markets) {
     const streamer = market.streams?.stream_key || getStreamerFromTitle(market.title)
@@ -82,7 +53,7 @@ export function LiveMarketsGrid() {
     streamerMap.get(streamer)!.push(market)
   }
 
-  // Merge: start with live streams from DB, then add any market-only streamers
+  // Merge live streams + market-only streamers
   const allChannels: string[] = []
   const seen = new Set<string>()
   for (const s of liveStreams) {
@@ -92,29 +63,29 @@ export function LiveMarketsGrid() {
     if (!seen.has(key)) { allChannels.push(key); seen.add(key) }
   }
 
-  const activeMarkets = activeStreamer ? (streamerMap.get(activeStreamer) || []) : []
+  const liveMap = new Map(liveStreams.map(s => [s.channel, s]))
 
   return (
-    <div>
+    <div style={{ padding: '24px 32px' }}>
+      {/* Page heading */}
+      <h1 style={{ fontSize: '22px', fontWeight: '700', color: '#111827', marginBottom: '16px' }}>Markets</h1>
+
       {/* Filter tabs */}
       <div style={{
-        display: 'flex', gap: '4px', marginBottom: '20px',
-        borderBottom: '1px solid #1F2937', paddingBottom: '16px'
+        display: 'flex', gap: '0',
+        borderBottom: '1px solid #E5E7EB', marginBottom: '24px',
       }}>
         {FILTERS.map(f => (
           <button
             key={f.key}
             onClick={() => setFilter(f.key)}
             style={{
-              padding: '6px 16px',
-              borderRadius: '9999px',
-              fontSize: '14px',
-              fontWeight: '500',
-              border: 'none',
-              cursor: 'pointer',
-              transition: 'all 0.15s',
-              background: filter === f.key ? 'white' : 'transparent',
-              color: filter === f.key ? '#111827' : '#6B7280',
+              padding: '8px 16px', background: 'transparent', border: 'none',
+              borderBottom: filter === f.key ? '2px solid #6366F1' : '2px solid transparent',
+              color: filter === f.key ? '#6366F1' : '#6B7280',
+              fontWeight: filter === f.key ? '600' : '500',
+              fontSize: '14px', cursor: 'pointer', transition: 'all 0.15s',
+              marginBottom: '-1px',
             }}
           >
             {f.label}
@@ -123,19 +94,19 @@ export function LiveMarketsGrid() {
       </div>
 
       {loading ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
           {[...Array(6)].map((_, i) => (
             <div key={i} style={{
-              height: '280px', background: '#111827',
-              border: '1px solid #1F2937', borderRadius: '12px',
-              animation: 'pulse 1.5s ease-in-out infinite'
+              height: '280px', background: '#F3F4F6',
+              border: '1px solid #E5E7EB', borderRadius: '12px',
+              animation: 'pulse 1.5s ease-in-out infinite',
             }} />
           ))}
         </div>
       ) : allChannels.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '80px 0' }}>
-          <div style={{ fontSize: '48px', marginBottom: '16px' }}>📡</div>
-          <p style={{ color: 'white', fontSize: '18px', fontWeight: '600', marginBottom: '8px' }}>
+          <div style={{ fontSize: '40px', marginBottom: '12px', opacity: 0.4 }}>📡</div>
+          <p style={{ color: '#111827', fontSize: '16px', fontWeight: '600', marginBottom: '6px' }}>
             Scanning Streams
           </p>
           <p style={{ color: '#6B7280', fontSize: '14px' }}>
@@ -143,25 +114,21 @@ export function LiveMarketsGrid() {
           </p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
-          {allChannels.map(channel => (
-            <StreamerCard
-              key={channel}
-              channel={channel}
-              markets={streamerMap.get(channel) || []}
-              onClick={() => setActiveStreamer(channel)}
-            />
-          ))}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+          {allChannels.map(channel => {
+            const live = liveMap.get(channel)
+            return (
+              <StreamerCard
+                key={channel}
+                channel={channel}
+                markets={streamerMap.get(channel) || []}
+                isLive={!!live}
+                thumbnail={live?.thumbnail || null}
+                onClick={() => router.push(`/markets/${channel}`)}
+              />
+            )
+          })}
         </div>
-      )}
-
-      {activeStreamer && (
-        <StreamerMarketsModal
-          channel={activeStreamer}
-          markets={activeMarkets}
-          onClose={() => setActiveStreamer(null)}
-          onBetPlaced={fetchData}
-        />
       )}
     </div>
   )
