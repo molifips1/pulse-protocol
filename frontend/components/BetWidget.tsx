@@ -124,9 +124,15 @@ export function BetWidget({ market, expired, onSuccess }: Props) {
       <div style={{ textAlign: 'center', padding: '28px 0' }}>
         <div style={{ fontSize: '36px', marginBottom: '8px' }}>✅</div>
         <p style={{ color: 'var(--green)', fontWeight: '700', fontSize: '15px', margin: '0 0 4px' }}>Bet Confirmed</p>
-        <p style={{ color: 'var(--muted)', fontSize: '12px', fontFamily: 'var(--font-mono)', margin: 0 }}>
+        <p style={{ color: 'var(--muted)', fontSize: '12px', fontFamily: 'var(--font-mono)', margin: '0 0 14px' }}>
           ${amountUsdc.toFixed(2)} on {betSide.toUpperCase()} · up to ${potentialPayout}
         </p>
+        <a href="/bets" style={{
+          display: 'inline-block', padding: '7px 18px', borderRadius: '8px',
+          background: 'var(--accent)', color: 'white',
+          fontSize: '13px', fontWeight: '700', textDecoration: 'none',
+          fontFamily: 'var(--font-mono)',
+        }}>View My Bets →</a>
       </div>
     )
   }

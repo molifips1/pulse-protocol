@@ -121,16 +121,20 @@ function BetCard({ bet, onClaimed }: { bet: any; onClaimed: () => void }) {
   }, [isSuccess]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleClaim = () => {
+    const fn = (bet.status === 'won' || userWon) ? 'claimWinnings' : 'claimRefund'
     writeContract({
       address: VAULT_ADDRESS,
       abi: VAULT_ABI,
-      functionName: bet.status === 'won' ? 'claimWinnings' : 'claimRefund',
+      functionName: fn,
       args: [bet.contract_bet_id as `0x${string}`],
     })
   }
 
-  const canClaim = (bet.status === 'won' || bet.status === 'refunded') && !isSuccess && !!bet.contract_bet_id
   const market = bet.markets
+  const userWon = market?.status === 'resolved' && market?.outcome === bet.side
+  const userRefund = bet.status === 'refunded' || market?.status === 'voided' || market?.outcome === 'void'
+  const canClaim = (bet.status === 'won' || userWon) && !isSuccess && !!bet.contract_bet_id
+  const canRefundClaim = userRefund && !isSuccess && !!bet.contract_bet_id
   const channel = market?.streams?.stream_key || (market?.title ? getStreamerFromTitle(market.title) : null)
   const marketExpired = market?.closes_at ? isPast(new Date(market.closes_at)) : false
 
@@ -185,18 +189,18 @@ function BetCard({ bet, onClaimed }: { bet: any; onClaimed: () => void }) {
             padding: '2px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', fontFamily: 'var(--font-mono)',
             background: ss.bg, border: `1px solid ${ss.border}`, color: ss.color,
           }}>{(bet.status || '').toUpperCase()}</span>
-          {canClaim && (
+          {(canClaim || canRefundClaim) && (
             <button
               onClick={handleClaim}
               disabled={isPending}
               style={{
                 padding: '5px 14px', borderRadius: '8px', border: 'none',
-                background: bet.status === 'won' ? 'var(--green)' : 'var(--muted)',
+                background: canClaim ? 'var(--green)' : 'var(--muted)',
                 color: 'white', fontSize: '12px', fontWeight: '600',
                 cursor: isPending ? 'not-allowed' : 'pointer', opacity: isPending ? 0.6 : 1,
               }}
             >
-              {isPending ? '…' : bet.status === 'won' ? 'Claim' : 'Refund'}
+              {isPending ? '…' : canClaim ? 'Claim Win' : 'Refund'}
             </button>
           )}
           {isSuccess && <span style={{ color: 'var(--green)', fontSize: '12px', fontWeight: '600' }}>✓ Claimed</span>}

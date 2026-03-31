@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useAccount } from 'wagmi'
 import type { Bet } from '../lib/supabase'
 
@@ -7,25 +7,32 @@ export function useUserBets() {
   const [bets, setBets] = useState<Bet[]>([])
   const [loading, setLoading] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const fetchBets = async (addr: string) => {
     setFetchError(null)
-    const res = await fetch(`/api/user-bets?wallet=${addr.toLowerCase()}`)
-    const json = await res.json()
-    if (!res.ok) {
-      console.error('[useUserBets] error:', json.error)
-      setFetchError(json.error || 'Failed to load bets')
+    try {
+      const res = await fetch(`/api/user-bets?wallet=${addr.toLowerCase()}`)
+      const json = await res.json()
+      if (!res.ok) {
+        setFetchError(json.error || 'Failed to load bets')
+      } else {
+        setBets(json.bets || [])
+      }
+    } catch {
+      setFetchError('Network error')
+    } finally {
       setLoading(false)
-      return
     }
-    setBets(json.bets || [])
-    setLoading(false)
   }
 
   useEffect(() => {
+    if (intervalRef.current) clearInterval(intervalRef.current)
     if (!address) { setBets([]); return }
     setLoading(true)
     fetchBets(address)
+    intervalRef.current = setInterval(() => fetchBets(address), 15_000)
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   }, [address])
 
   const refetch = () => { if (address) { setLoading(true); fetchBets(address) } }
