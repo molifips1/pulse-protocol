@@ -27,25 +27,16 @@ const SUPABASE_URL = process.env.SUPABASE_URL || ''
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || ''
 
 const STREAMERS = [
-  // Top casino streamers
-  'trainwreckstv', 'roshtein', 'haddzy', 'xposed', 'classybeef',
-  'casinodaddy', 'jarttu84', 'stevewilldoit', 'elzeein', 'cheesur',
-  'westcol', 'ac7ionman', 'deuceace', 'vondice', 'syztmz',
-  'taour', 'tyceno', 'capatob', 'snutz', 'ilyaselmaliki',
-  'mellstroy475', 'adinross', 'caseoh', 'ngslot', 'snikwins',
-  'xqc', 'mitchjones', 'corinnakopf', 'kingkulbik', 'gtasty',
-  // Additional casino streamers
-  'stake', 'stakeus', 'nickslots', 'labowsky', 'bonusking',
-  'fruityslots', 'slotspinner', 'goonbags', 'nicks_slots', 'cg_cgaming',
-  'chipmonkz', 'casino_eric', 'slotlady', 'vegaslow', 'mrvegas',
-  'david_labowsky', 'bonanzas', 'spintwix', 'slotsfighter', 'casinogrounds',
-  'szymool', 'scurrows', 'lobanjicaa', 'teufeurs', 'bougassaa',
-  'nahoule82k', 'vodkafunky', '7idan7777', 'mathematicien', 'paymoneywubby',
-  'butisito', 'zonagemelosoficial', 'lospollosTV', 'letsgiveItaspin', 'striker6x6',
-  'rombears', 'real_bazzi', 'hunterowner', 'sniff', 'andymilonakis',
-  'SweetFlips', 'zubarefff45', 'wesbtw', 'BlondeRabbit', 'ARTEMGRAPH',
-  'Native_Stream_192', 'AFERIStT', 'generalqw77',
-  'orangemorange'
+  'trainwreckstv', 'roshtein', 'maherco', 'classybeef', 'xposed', 'mellstroy987',
+  'sweetflips', 'cheesur', 'syztmz', 'vysotzky', 'elzeein', 'taour',
+  'plinkoplayerca', 'glowis888', 'sloxol', 'dajmaxdajmax', 'maloycsеr',
+  'ladyluckslots', 'mascoobs', 'cousik', 'tck', 'shurzggg', 'haddzy', 'snikwins', 'gtasty',
+  'rakkispider', 'gamegladiatorgg', 'baldybronson',
+  'hunterowner', 'lvsteppers', 'splyfe_sv', 'umbrab0i', 'real_bazzi', '666dope', 'stripnclub',
+  'zeroedg3', 'torontovvs', 'dzhordik', 'strikeeth', 'art_depo', 'scurrows', 'kyrexx21', 'k3ltz',
+  'viktoria_sun', 'robertolovely', 'rombears', 'zpaic0', 'renzrzkzbhsfw', 'jo1nder', 'moratiar',
+  'skinnyoungster', 'sparta4elo', 'hutonis4', 'striker6x6', 'opmbaby_', 'tobbianoq', 'playermaketv',
+  'disthydbeast', 'slowl33', 'moneyneedoff', 'voryndor', 'ketlerrr52', 'misterjack1995', 'goert08', 'hoodden',
 ]
 
 const marketCooldowns = new Map()

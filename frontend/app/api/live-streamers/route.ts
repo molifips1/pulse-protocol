@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { KNOWN_STREAMERS } from '@/lib/utils'
 
 const ORACLE_URL = process.env.ORACLE_URL || ''
 
@@ -13,8 +14,10 @@ export async function GET() {
     if (!res.ok) return NextResponse.json({ streamers: [] })
     const data = await res.json()
     const all = data.streamers || []
-    const casinoOnly = all.filter((s: any) => s.category === 'casino')
-    return NextResponse.json({ streamers: casinoOnly })
+    const knownOnly = all.filter((s: any) =>
+      KNOWN_STREAMERS.includes((s.channel || s.name || '').toLowerCase())
+    )
+    return NextResponse.json({ streamers: knownOnly })
   } catch {
     return NextResponse.json({ streamers: [] })
   }

@@ -1,17 +1,14 @@
 export const KNOWN_STREAMERS = [
-  'trainwreckstv','haddzy','roshtein','xqc','adinross','mellstroy475','xposed',
-  'classybeef','stevewilldoit','casinodaddy','cheesur','caseoh','kingkulbik',
-  'ngslot','jarttu84','snikwins','gtasty','ac7ionman','westcol','elzeein',
-  'syztmz','mitchjones','corinnakopf','taour','tyceno','capatob','snutz',
-  'ilyaselmaliki','szymool','scurrows','lobanjicaa','teufeurs','deuceace','vondice',
-  'bougassaa','nahoule82k','vodkafunky','7idan7777','mathematicien','paymoneywubby',
-  'butisito','zonagemelosoficial','lospollosTV','letsgiveItaspin','striker6x6','rombears',
-  'real_bazzi','hunterowner','sniff','andymilonakis','orangemorange',
-  'stake','stakeus','nickslots','labowsky','bonusking','fruityslots','slotspinner',
-  'goonbags','nicks_slots','cg_cgaming','chipmonkz','casino_eric','slotlady',
-  'vegaslow','mrvegas','david_labowsky','bonanzas','spintwix','slotsfighter','casinogrounds',
-  'sweetflips','zubarefff45','wesbtw','blonderabbit','artemgraph',
-  'native_stream_192','aferist','generalqw77',
+  'trainwreckstv','roshtein','maherco','classybeef','xposed','mellstroy987',
+  'sweetflips','cheesur','syztmz','vysotzky','elzeein','taour',
+  'plinkoplayerca','glowis888','sloxol','dajmaxdajmax','maloycsеr',
+  'ladyluckslots','mascoobs','cousik','tck','shurzggg','haddzy','snikwins','gtasty',
+  'rakkispider','gamegladiatorgg','baldybronson',
+  'hunterowner','lvsteppers','splyfe_sv','umbrab0i','real_bazzi','666dope','stripnclub',
+  'zeroedg3','torontovvs','dzhordik','strikeeth','art_depo','scurrows','kyrexx21','k3ltz',
+  'viktoria_sun','robertolovely','rombears','zpaic0','renzrzkzbhsfw','jo1nder','moratiar',
+  'skinnyoungster','sparta4elo','hutonis4','striker6x6','opmbaby_','tobbianoq','playermaketv',
+  'disthydbeast','slowl33','moneyneedoff','voryndor','ketlerrr52','misterjack1995','goert08','hoodden',
 ]
 
 export function getStreamerFromTitle(title: string): string | null {
