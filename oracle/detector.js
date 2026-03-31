@@ -696,15 +696,66 @@ async function resolveExpiredMarkets() {
   }
 }
 
+async function batchCheckLive(channels) {
+  // Use Kick v2 batch API — one request for up to 25 channels
+  try {
+    const query = channels.map(c => `channels[]=${encodeURIComponent(c)}`).join('&')
+    const result = await fetchJson(`https://kick.com/api/v2/channels?${query}`, {
+      headers: { 'Referer': 'https://kick.com', 'Origin': 'https://kick.com' }
+    })
+    if (result.status !== 200 || !Array.isArray(result.data)) {
+      console.log(`[DETECTOR] Kick v2 batch API ${result.status} — falling back to v1`)
+      return null // signal to fall back
+    }
+    const live = []
+    for (const ch of result.data) {
+      if (ch.is_live && ch.current_livestream) {
+        live.push({
+          channel: ch.slug,
+          isLive: true,
+          title: ch.current_livestream.session_title || '',
+          category: ch.current_livestream.categories?.[0]?.slug || 'other',
+          category_name: ch.current_livestream.categories?.[0]?.name || 'Live Stream',
+          viewers: ch.viewer_count || ch.current_livestream.viewer_count || 0,
+          streamer_name: ch.slug,
+          thumbnail: ch.current_livestream.thumbnail?.url || null,
+          chatRoomId: ch.chatroom?.id || null
+        })
+      }
+    }
+    return live
+  } catch (e) {
+    console.log(`[DETECTOR] batchCheckLive error: ${e.message}`)
+    return null
+  }
+}
+
 async function mainLoop() {
   console.log(`[DETECTOR] Checking ${STREAMERS.length} streamers...`)
   const liveStreamers = []
 
-  // Check all streamers sequentially with delay to avoid Kick rate-limiting
-  for (const channel of STREAMERS) {
-    const info = await checkIfLive(channel)
-    if (info.isLive) liveStreamers.push({ channel, ...info })
-    await new Promise(r => setTimeout(r, 800))
+  // Try Kick v2 batch API first (25 channels per request, much less likely to be rate-limited)
+  let usedBatch = false
+  for (let i = 0; i < STREAMERS.length; i += 25) {
+    const batch = STREAMERS.slice(i, i + 25)
+    const results = await batchCheckLive(batch)
+    if (results === null) {
+      usedBatch = false
+      break // v2 failed, fall back to v1
+    }
+    usedBatch = true
+    liveStreamers.push(...results)
+    if (i + 25 < STREAMERS.length) await new Promise(r => setTimeout(r, 1500))
+  }
+
+  // Fall back to sequential v1 if batch failed
+  if (!usedBatch) {
+    console.log('[DETECTOR] Using v1 fallback (sequential)')
+    for (const channel of STREAMERS) {
+      const info = await checkIfLive(channel)
+      if (info.isLive) liveStreamers.push({ channel, ...info })
+      await new Promise(r => setTimeout(r, 800))
+    }
   }
 
   if (liveStreamers.length === 0) {
