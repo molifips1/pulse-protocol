@@ -54,57 +54,90 @@ function verifySignature(rawBody: Buffer, sig: string): boolean {
   }
 }
 
-// ─── Viewer count bracket helper ─────────────────────────────────────────────
+// ─── Viewer count bracket helpers ────────────────────────────────────────────
+
+function fmtK(n: number): string {
+  if (n >= 1000) return `${n / 1000 % 1 === 0 ? n / 1000 : (n / 1000).toFixed(1)}K`;
+  return `${n}`;
+}
 
 /**
- * Given a current viewer count, returns a clean bracket threshold that's
- * close enough to be interesting (within ~20-30% of current count).
- * e.g. 4,800 viewers → threshold 5,000 ("Will X have 5K+ viewers?")
- *      23,000 viewers → threshold 25,000
+ * Generate 4 viewer-count ranges centered around the current viewer count.
+ * Each range becomes its own binary YES/NO market, all sharing a parent
+ * event title via the " | " separator (used by the frontend to group them).
+ *
+ * Example — 4,800 viewers, step=2,000:
+ *   [0 – 2K]  [2K – 4K]  [4K – 6K]  [6K+]
  */
-function viewerBracket(viewers: number): { threshold: number; label: string } {
-  const steps = [250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000];
-  // Pick smallest step that's at least 15% of current viewers
-  const step = steps.find(s => s >= viewers * 0.15) ?? 10000;
-  // Round up to next clean multiple of step
-  const threshold = Math.ceil(viewers / step) * step;
-  const label = threshold >= 1000
-    ? `${(threshold / 1000 % 1 === 0 ? threshold / 1000 : (threshold / 1000).toFixed(1))}K`
-    : `${threshold}`;
-  return { threshold, label };
+function viewerBrackets(viewers: number): Array<{ label: string; lo: number; hi: number | null }> {
+  // Pick a step ~25% of current viewers, snapped to a clean number
+  const rawStep = Math.max(viewers * 0.25, 100);
+  const steps   = [250, 500, 1000, 2000, 2500, 5000, 10000, 25000, 50000];
+  const step    = steps.find(s => s >= rawStep) ?? 50000;
+
+  // Center around a clean multiple of step close to current viewers
+  const center = Math.round(viewers / step) * step;
+
+  const b1 = Math.max(center - step, 0);
+  const b2 = center;
+  const b3 = center + step;
+
+  return [
+    { label: `<${fmtK(b1 || step)}`,           lo: 0,   hi: b1 || step },
+    { label: `${fmtK(b1)}-${fmtK(b2)}`,        lo: b1,  hi: b2 },
+    { label: `${fmtK(b2)}-${fmtK(b3)}`,        lo: b2,  hi: b3 },
+    { label: `${fmtK(b3)}+`,                   lo: b3,  hi: null },
+  ];
+}
+
+function hourWindow(): string {
+  const now   = new Date();
+  const start = new Date(now);
+  start.setMinutes(0, 0, 0);
+  const end   = new Date(start);
+  end.setHours(start.getHours() + 1);
+  const fmt = (d: Date) =>
+    d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+  return `${fmt(start)} - ${fmt(end)}`;
 }
 
 // ─── Handlers ─────────────────────────────────────────────────────────────────
 
 async function handleStreamLive(data: any) {
-  const { stream_id, channel, current_viewers, streamer_wallet, duration_sec = 900 } = data;
+  const { stream_id, channel, current_viewers, streamer_wallet, duration_sec = 3600 } = data;
   app.log.info("Stream live event: channel=%s viewers=%d", channel, current_viewers);
 
-  // Only create if no viewer-count market already open for this stream
+  // Skip if viewer-range markets already exist for this stream
   const { count } = await supabase
     .from("markets")
     .select("id", { count: "exact", head: true })
     .eq("stream_id", stream_id)
     .eq("status", "open")
-    .ilike("title", "%viewer%");
+    .ilike("title", "%Peak Viewership%");
 
   if ((count ?? 0) > 0) {
-    app.log.info("Viewer count market already exists for %s — skipping", channel);
+    app.log.info("Peak Viewership markets already exist for %s — skipping", channel);
     return;
   }
 
-  const { threshold, label } = viewerBracket(current_viewers ?? 0);
   const displayChannel = channel.charAt(0).toUpperCase() + channel.slice(1);
+  const window         = hourWindow();
+  const eventTitle     = `What will ${displayChannel}'s Peak Viewership be (${window})?`;
+  const brackets       = viewerBrackets(current_viewers ?? 0);
 
-  await handleMarketCreate({
-    stream_id,
-    question: `Will ${displayChannel} reach ${label}+ viewers in the next 15 minutes?`,
-    category:       "irl",
-    confidence:     1,
-    duration_sec,
-    settle_window:  300,
-    streamer_wallet: streamer_wallet ?? ethers.ZeroAddress,
-  });
+  // Create one binary market per bracket — title uses " | " separator so
+  // the frontend can group them under a single event card.
+  for (const bracket of brackets) {
+    await handleMarketCreate({
+      stream_id,
+      question:        `${eventTitle} | ${bracket.label} viewers`,
+      category:        "irl",
+      confidence:      1,
+      duration_sec,
+      settle_window:   300,
+      streamer_wallet: streamer_wallet ?? ethers.ZeroAddress,
+    });
+  }
 }
 
 async function handleMarketCreate(data: any) {
