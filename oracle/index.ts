@@ -54,7 +54,58 @@ function verifySignature(rawBody: Buffer, sig: string): boolean {
   }
 }
 
+// ─── Viewer count bracket helper ─────────────────────────────────────────────
+
+/**
+ * Given a current viewer count, returns a clean bracket threshold that's
+ * close enough to be interesting (within ~20-30% of current count).
+ * e.g. 4,800 viewers → threshold 5,000 ("Will X have 5K+ viewers?")
+ *      23,000 viewers → threshold 25,000
+ */
+function viewerBracket(viewers: number): { threshold: number; label: string } {
+  const steps = [250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000];
+  // Pick smallest step that's at least 15% of current viewers
+  const step = steps.find(s => s >= viewers * 0.15) ?? 10000;
+  // Round up to next clean multiple of step
+  const threshold = Math.ceil(viewers / step) * step;
+  const label = threshold >= 1000
+    ? `${(threshold / 1000 % 1 === 0 ? threshold / 1000 : (threshold / 1000).toFixed(1))}K`
+    : `${threshold}`;
+  return { threshold, label };
+}
+
 // ─── Handlers ─────────────────────────────────────────────────────────────────
+
+async function handleStreamLive(data: any) {
+  const { stream_id, channel, current_viewers, streamer_wallet, duration_sec = 900 } = data;
+  app.log.info("Stream live event: channel=%s viewers=%d", channel, current_viewers);
+
+  // Only create if no viewer-count market already open for this stream
+  const { count } = await supabase
+    .from("markets")
+    .select("id", { count: "exact", head: true })
+    .eq("stream_id", stream_id)
+    .eq("status", "open")
+    .ilike("title", "%viewer%");
+
+  if ((count ?? 0) > 0) {
+    app.log.info("Viewer count market already exists for %s — skipping", channel);
+    return;
+  }
+
+  const { threshold, label } = viewerBracket(current_viewers ?? 0);
+  const displayChannel = channel.charAt(0).toUpperCase() + channel.slice(1);
+
+  await handleMarketCreate({
+    stream_id,
+    question: `Will ${displayChannel} reach ${label}+ viewers in the next 15 minutes?`,
+    category:       "irl",
+    confidence:     1,
+    duration_sec,
+    settle_window:  300,
+    streamer_wallet: streamer_wallet ?? ethers.ZeroAddress,
+  });
+}
 
 async function handleMarketCreate(data: any) {
   app.log.info("Creating market for stream %s", data.stream_id);
@@ -189,6 +240,7 @@ app.post("/webhook", async (req, reply) => {
 
   try {
     switch (type) {
+      case "stream_live":    await handleStreamLive(data);   break;
       case "market_create":  await handleMarketCreate(data); break;
       case "market_settle":  await handleMarketSettle(data); break;
       case "market_void":    await handleMarketVoid(data);   break;
