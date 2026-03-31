@@ -12,8 +12,7 @@ export async function GET() {
     })
     if (!res.ok) return NextResponse.json({ streamers: [] })
     const data = await res.json()
-    const casinoOnly = (data.streamers || []).filter((s: any) => s.category === 'casino')
-    return NextResponse.json({ streamers: casinoOnly })
+    return NextResponse.json({ streamers: data.streamers || [] })
   } catch {
     return NextResponse.json({ streamers: [] })
   }
