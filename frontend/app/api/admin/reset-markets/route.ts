@@ -12,17 +12,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Delete bets first (foreign key constraint)
-  const { error: betsErr, count: betsCount } = await supabase
-    .from('bets')
-    .delete({ count: 'exact' })
-    .neq('id', '00000000-0000-0000-0000-000000000000')
+  // Delete dependents first (foreign key order)
+  await supabase.from('bets').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+  await supabase.from('oracle_events').delete().neq('id', '00000000-0000-0000-0000-000000000000')
 
-  if (betsErr) {
-    return NextResponse.json({ error: `Failed to delete bets: ${betsErr.message}` }, { status: 500 })
-  }
-
-  // Delete all markets
   const { error: marketsErr, count: marketsCount } = await supabase
     .from('markets')
     .delete({ count: 'exact' })
@@ -34,6 +27,6 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     success: true,
-    deleted: { bets: betsCount, markets: marketsCount },
+    deleted: { markets: marketsCount },
   })
 }
