@@ -392,12 +392,17 @@ export default function MarketPage() {
     go()
   }, [selectedMarket?.id, address, dataRefresh])
 
-  // Live info
+  // Live info — poll every 10s for real-time viewer count
   useEffect(() => {
-    fetch('/api/live-streamers').then(r => r.json()).then(d => {
-      const streamer = (d.streamers || []).find((s: any) => s.channel.toLowerCase() === channel)
-      if (streamer) setLiveInfo({ viewers: streamer.viewers })
-    }).catch(() => {})
+    const fetchLive = () => {
+      fetch('/api/live-streamers').then(r => r.json()).then(d => {
+        const streamer = (d.streamers || []).find((s: any) => s.channel.toLowerCase() === channel)
+        if (streamer) setLiveInfo({ viewers: streamer.viewers })
+      }).catch(() => {})
+    }
+    fetchLive()
+    const t = setInterval(fetchLive, 10000)
+    return () => clearInterval(t)
   }, [channel])
 
   // Countdown timer
@@ -458,22 +463,22 @@ export default function MarketPage() {
     <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '16px 24px 60px' }}>
 
       {/* breadcrumb */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px', flexWrap: 'wrap' }}>
-        <Link href="/" style={{ color: 'var(--muted)', fontSize: '12px', textDecoration: 'none', fontFamily: 'var(--font-mono)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px', flexWrap: 'wrap' }}>
+        <Link href="/" style={{ color: 'var(--muted)', fontSize: '14px', textDecoration: 'none', fontFamily: 'var(--font-mono)' }}>
           ← Markets
         </Link>
-        <span style={{ color: 'var(--dim)' }}>/</span>
-        <span style={{ color: 'var(--text)', fontWeight: '700', fontSize: '15px', fontFamily: 'var(--font-display)', textTransform: 'capitalize' }}>
+        <span style={{ color: 'var(--dim)', fontSize: '18px' }}>/</span>
+        <span style={{ color: 'var(--text)', fontWeight: '700', fontSize: '24px', fontFamily: 'var(--font-display)', textTransform: 'capitalize' }}>
           {channel}
         </span>
         {liveInfo && (
           <span style={{
-            display: 'inline-flex', alignItems: 'center', gap: '5px',
+            display: 'inline-flex', alignItems: 'center', gap: '7px',
             background: 'rgba(255,45,85,0.1)', color: 'var(--live)',
-            fontSize: '10px', fontWeight: '700', padding: '3px 10px', borderRadius: '99px',
-            fontFamily: 'var(--font-mono)', border: '1px solid rgba(255,45,85,0.2)',
+            fontSize: '14px', fontWeight: '700', padding: '6px 14px', borderRadius: '99px',
+            fontFamily: 'var(--font-mono)', border: '1px solid rgba(255,45,85,0.25)',
           }}>
-            <span className="live-dot" style={{ width: '5px', height: '5px' }} />
+            <span className="live-dot" style={{ width: '7px', height: '7px' }} />
             LIVE{liveInfo.viewers ? ` · ${liveInfo.viewers.toLocaleString()}` : ''}
           </span>
         )}
