@@ -203,24 +203,26 @@ async function checkIfLive(channel) {
     const result = await fetchJson(`https://kick.com/api/v1/channels/${channel}`, {
       headers: { 'Referer': 'https://kick.com', 'Origin': 'https://kick.com' }
     })
-    if (result.status === 200 && result.data) {
+    if (result.status !== 200) {
+      console.log(`[DETECTOR] Kick API ${result.status} for ${channel}`)
+      return { isLive: false }
+    }
+    if (result.data?.livestream) {
       const d = result.data
-      if (d.livestream) {
-        return {
-          isLive: true,
-          title: d.livestream.session_title || '',
-          category: d.livestream.categories?.[0]?.slug || 'other',
-          category_name: d.livestream.categories?.[0]?.name || 'Live Stream',
-          viewers: d.livestream.viewer_count || 0,
-          streamer_name: d.user?.username || channel,
-          playbackUrl: d.playback_url || null,
-          thumbnail: d.livestream.thumbnail?.url || null,
-          chatRoomId: d.chatroom?.id || null
-        }
+      return {
+        isLive: true,
+        title: d.livestream.session_title || '',
+        category: d.livestream.categories?.[0]?.slug || 'other',
+        category_name: d.livestream.categories?.[0]?.name || 'Live Stream',
+        viewers: d.livestream.viewer_count || 0,
+        streamer_name: d.user?.username || channel,
+        playbackUrl: d.playback_url || null,
+        thumbnail: d.livestream.thumbnail?.url || null,
+        chatRoomId: d.chatroom?.id || null
       }
     }
   } catch (e) {
-    // silent fail
+    console.log(`[DETECTOR] checkIfLive error for ${channel}: ${e.message}`)
   }
   return { isLive: false }
 }
@@ -698,15 +700,11 @@ async function mainLoop() {
   console.log(`[DETECTOR] Checking ${STREAMERS.length} streamers...`)
   const liveStreamers = []
 
-  // Check all streamers in parallel batches of 5
-  for (let i = 0; i < STREAMERS.length; i += 5) {
-    const batch = STREAMERS.slice(i, i + 5)
-    const results = await Promise.all(batch.map(async (channel) => {
-      const info = await checkIfLive(channel)
-      return { channel, ...info }
-    }))
-    liveStreamers.push(...results.filter(r => r.isLive))
-    await new Promise(r => setTimeout(r, 500)) // small delay between batches
+  // Check all streamers sequentially with delay to avoid Kick rate-limiting
+  for (const channel of STREAMERS) {
+    const info = await checkIfLive(channel)
+    if (info.isLive) liveStreamers.push({ channel, ...info })
+    await new Promise(r => setTimeout(r, 800))
   }
 
   if (liveStreamers.length === 0) {
