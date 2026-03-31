@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase, type Market } from '../lib/supabase'
 import { StreamerCard } from './StreamerCard'
-import { getStreamerFromTitle } from '../lib/utils'
+import { getStreamerFromTitle, KNOWN_STREAMERS } from '../lib/utils'
 
 export function LiveMarketsGrid() {
   const router = useRouter()
@@ -53,11 +53,17 @@ export function LiveMarketsGrid() {
     .sort((a, b) => b.viewers - a.viewers)
     .map(s => s.channel.toLowerCase())
 
-  // Offline: streamers with any markets but not currently live
+  // Offline: all known streamers not currently live, sorted by those with markets first
+  const liveSetLower = new Set(onlineChannels)
   const offlineChannels: string[] = []
   const seen = new Set(onlineChannels)
+  // First add known streamers with markets
   for (const key of streamerMap.keys()) {
     if (!seen.has(key)) { offlineChannels.push(key); seen.add(key) }
+  }
+  // Then add all other known streamers who are simply offline
+  for (const s of KNOWN_STREAMERS) {
+    if (!seen.has(s)) { offlineChannels.push(s); seen.add(s) }
   }
 
   const activeChannels = tab === 'online' ? onlineChannels : offlineChannels

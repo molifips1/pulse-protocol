@@ -47,17 +47,24 @@ export function StreamerCard({ channel, markets, isLive, thumbnail, onClick }: P
             </span>
           </div>
         )}
-        {isLive && (
-          <div style={{
-            position: 'absolute', top: '8px', left: '8px',
-            display: 'flex', alignItems: 'center', gap: '5px',
-            background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)',
-            borderRadius: '5px', padding: '3px 7px',
-          }}>
-            <span className="live-dot" style={{ width: '5px', height: '5px' }} />
-            <span style={{ color: 'white', fontSize: '10px', fontFamily: 'var(--font-mono)', fontWeight: '600', letterSpacing: '0.05em' }}>LIVE</span>
-          </div>
-        )}
+        <div style={{
+          position: 'absolute', top: '8px', left: '8px',
+          display: 'flex', alignItems: 'center', gap: '5px',
+          background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)',
+          borderRadius: '5px', padding: '3px 7px',
+        }}>
+          {isLive ? (
+            <>
+              <span className="live-dot" style={{ width: '5px', height: '5px' }} />
+              <span style={{ color: 'white', fontSize: '10px', fontFamily: 'var(--font-mono)', fontWeight: '600', letterSpacing: '0.05em' }}>LIVE</span>
+            </>
+          ) : (
+            <>
+              <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'var(--dim)', flexShrink: 0 }} />
+              <span style={{ color: 'var(--dim)', fontSize: '10px', fontFamily: 'var(--font-mono)', fontWeight: '600', letterSpacing: '0.05em' }}>OFFLINE</span>
+            </>
+          )}
+        </div>
         {markets.length > 0 && (
           <div style={{
             position: 'absolute', top: '8px', right: '8px',
