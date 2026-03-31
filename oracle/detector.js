@@ -27,7 +27,7 @@ const SUPABASE_URL = process.env.SUPABASE_URL || ''
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || ''
 
 const STREAMERS = [
-  'trainwreckstv', 'roshtein', 'maherco', 'classybeef', 'xposed', 'mellstroy987',
+  'trainwreckstv', 'roshtein', 'classybeef', 'xposed', 'mellstroy987',
   'sweetflips', 'cheesur', 'syztmz', 'vysotzky', 'elzeein', 'taour',
   'plinkoplayerca', 'glowis888', 'sloxol', 'dajmaxdajmax', 'maloycsеr',
   'ladyluckslots', 'mascoobs', 'cousik', 'tck', 'shurzggg', 'haddzy', 'snikwins', 'gtasty',
@@ -785,6 +785,9 @@ async function mainLoop() {
   } catch (e) {
     // silent
   }
+
+  // Automated market generation disabled — Peak Viewership markets only (created via admin endpoint)
+  return
 
   // Generate markets for all live streamers
   for (const streamer of liveStreamers) {

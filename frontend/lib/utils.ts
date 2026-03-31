@@ -1,5 +1,5 @@
 export const KNOWN_STREAMERS = [
-  'trainwreckstv','roshtein','maherco','classybeef','xposed','mellstroy987',
+  'trainwreckstv','roshtein','classybeef','xposed','mellstroy987',
   'sweetflips','cheesur','syztmz','vysotzky','elzeein','taour',
   'plinkoplayerca','glowis888','sloxol','dajmaxdajmax','maloycsеr',
   'ladyluckslots','mascoobs','cousik','tck','shurzggg','haddzy','snikwins','gtasty',
