@@ -477,26 +477,88 @@ export default function MarketPage() {
         </a>
       </div>
 
-      {/* ── main layout: LEFT = stream + detail, RIGHT = markets + bet ── */}
+      {/* ── stream embed (full width) ── */}
+      <div style={{
+        borderRadius: '14px', overflow: 'hidden', aspectRatio: '16/9', width: '100%',
+        background: 'var(--surface-2)', border: '1px solid var(--border)',
+        marginBottom: '20px',
+      }}>
+        <iframe
+          src={`https://player.kick.com/${channel}?autoplay=true&muted=false&parent=pulse-protocol1.vercel.app`}
+          style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+          allowFullScreen allow="autoplay; fullscreen"
+        />
+      </div>
+
+      {/* ── below stream: LEFT = markets + detail, RIGHT = sticky bet widget ── */}
       <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
 
-        {/* ── LEFT: stream + selected market detail ── */}
+        {/* ── LEFT: tabs + market cards + selected detail + activity ── */}
         <div style={{ flex: 1, minWidth: 0 }}>
 
-          {/* stream embed */}
-          <div style={{
-            borderRadius: '14px', overflow: 'hidden', aspectRatio: '16/9', width: '100%',
-            background: 'var(--surface-2)', border: '1px solid var(--border)',
-            marginBottom: '20px',
-          }}>
-            <iframe
-              src={`https://player.kick.com/${channel}?autoplay=true&muted=false&parent=pulse-protocol1.vercel.app`}
-              style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
-              allowFullScreen allow="autoplay; fullscreen"
-            />
+          {/* tab switcher */}
+          <div style={{ display: 'flex', gap: '4px', marginBottom: '12px' }}>
+            <button onClick={() => setActiveTab('available')} style={{
+              flex: 1, padding: '8px 12px', borderRadius: '8px', border: 'none', cursor: 'pointer',
+              background: visibleTab === 'available' ? 'var(--surface-2)' : 'transparent',
+              color: visibleTab === 'available' ? 'var(--text)' : 'var(--muted)',
+              fontWeight: '700', fontSize: '12px', fontFamily: 'var(--font-display)',
+              transition: 'all 0.15s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+            }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--yes)', boxShadow: availableMarkets.length > 0 ? '0 0 5px var(--yes)' : 'none', flexShrink: 0 }} />
+              Available
+              <span style={{ padding: '1px 6px', borderRadius: '99px', fontSize: '10px', fontFamily: 'var(--font-mono)', fontWeight: '700', background: visibleTab === 'available' ? 'rgba(59,130,246,0.15)' : 'var(--surface)', color: visibleTab === 'available' ? 'var(--yes)' : 'var(--muted)' }}>
+                {availableMarkets.length}
+              </span>
+            </button>
+            <button onClick={() => setActiveTab('ended')} style={{
+              flex: 1, padding: '8px 12px', borderRadius: '8px', border: 'none', cursor: 'pointer',
+              background: visibleTab === 'ended' ? 'var(--surface-2)' : 'transparent',
+              color: visibleTab === 'ended' ? 'var(--text)' : 'var(--muted)',
+              fontWeight: '700', fontSize: '12px', fontFamily: 'var(--font-display)',
+              transition: 'all 0.15s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+            }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--dim)', flexShrink: 0 }} />
+              Ended
+              <span style={{ padding: '1px 6px', borderRadius: '99px', fontSize: '10px', fontFamily: 'var(--font-mono)', fontWeight: '700', background: visibleTab === 'ended' ? 'var(--surface-2)' : 'var(--surface)', color: 'var(--muted)', border: '1px solid var(--border)' }}>
+                {endedMarkets.length}
+              </span>
+            </button>
           </div>
 
-          {/* selected market detail — shown below stream once a card is clicked */}
+          {/* market cards */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}>
+            {visibleTab === 'available' && (
+              availableItems.length === 0 ? (
+                <div style={{ padding: '24px', borderRadius: '12px', border: '1px dashed var(--border)', color: 'var(--muted)', fontSize: '12px', textAlign: 'center', fontFamily: 'var(--font-mono)' }}>
+                  No open bets right now
+                </div>
+              ) : availableItems.map((item, i) =>
+                item.type === 'group' ? (
+                  <GroupedEventCard
+                    key={item.eventTitle}
+                    eventTitle={item.eventTitle}
+                    markets={item.markets}
+                    selectedId={sm?.id ?? null}
+                    onSelect={m => { setSelectedMarket(m); setActiveTab('available') }}
+                  />
+                ) : (
+                  <BettingCard key={item.market.id} market={item.market} selected={sm?.id === item.market.id} onClick={() => { setSelectedMarket(item.market); setActiveTab('available') }} />
+                )
+              )
+            )}
+            {visibleTab === 'ended' && (
+              endedMarkets.length === 0 ? (
+                <div style={{ padding: '24px', borderRadius: '12px', border: '1px dashed var(--border)', color: 'var(--muted)', fontSize: '12px', textAlign: 'center', fontFamily: 'var(--font-mono)' }}>
+                  No ended bets yet
+                </div>
+              ) : endedMarkets.map(m => (
+                <EndedMarketRow key={m.id} market={m} selected={sm?.id === m.id} onClick={() => setSelectedMarket(m)} />
+              ))
+            )}
+          </div>
+
+          {/* selected market detail */}
           {sm && odds ? (
             <div>
               {/* market question + prob card */}
@@ -593,7 +655,7 @@ export default function MarketPage() {
           ) : (
             markets.length > 0 && (
               <div style={{ padding: '24px', background: 'var(--surface)', border: '1px dashed var(--border)', borderRadius: '14px', textAlign: 'center' }}>
-                <p style={{ color: 'var(--muted)', fontSize: '13px', margin: 0 }}>← Select a bet on the right to get started</p>
+                <p style={{ color: 'var(--muted)', fontSize: '13px', margin: 0 }}>Select a bet above to see details</p>
               </div>
             )
           )}
@@ -605,81 +667,16 @@ export default function MarketPage() {
           )}
         </div>
 
-        {/* ── RIGHT: sticky panel — market tabs + cards + bet widget ── */}
+        {/* ── RIGHT: sticky bet widget + positions + holders ── */}
         <div style={{
           width: '360px', flexShrink: 0,
           position: 'sticky', top: '16px',
-          maxHeight: 'calc(100vh - 80px)', overflowY: 'auto',
+          maxHeight: 'calc(100vh - 48px)', overflowY: 'auto',
           scrollbarWidth: 'none',
-          display: 'flex', flexDirection: 'column', gap: '0',
+          display: 'flex', flexDirection: 'column', gap: '10px',
         }}>
-
-          {/* tab switcher */}
-          <div style={{ display: 'flex', gap: '4px', marginBottom: '12px' }}>
-            <button onClick={() => setActiveTab('available')} style={{
-              flex: 1, padding: '8px 12px', borderRadius: '8px', border: 'none', cursor: 'pointer',
-              background: visibleTab === 'available' ? 'var(--surface-2)' : 'transparent',
-              color: visibleTab === 'available' ? 'var(--text)' : 'var(--muted)',
-              fontWeight: '700', fontSize: '12px', fontFamily: 'var(--font-display)',
-              transition: 'all 0.15s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-            }}>
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--yes)', boxShadow: availableMarkets.length > 0 ? '0 0 5px var(--yes)' : 'none', flexShrink: 0 }} />
-              Available
-              <span style={{ padding: '1px 6px', borderRadius: '99px', fontSize: '10px', fontFamily: 'var(--font-mono)', fontWeight: '700', background: visibleTab === 'available' ? 'rgba(59,130,246,0.15)' : 'var(--surface)', color: visibleTab === 'available' ? 'var(--yes)' : 'var(--muted)' }}>
-                {availableMarkets.length}
-              </span>
-            </button>
-            <button onClick={() => setActiveTab('ended')} style={{
-              flex: 1, padding: '8px 12px', borderRadius: '8px', border: 'none', cursor: 'pointer',
-              background: visibleTab === 'ended' ? 'var(--surface-2)' : 'transparent',
-              color: visibleTab === 'ended' ? 'var(--text)' : 'var(--muted)',
-              fontWeight: '700', fontSize: '12px', fontFamily: 'var(--font-display)',
-              transition: 'all 0.15s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-            }}>
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--dim)', flexShrink: 0 }} />
-              Ended
-              <span style={{ padding: '1px 6px', borderRadius: '99px', fontSize: '10px', fontFamily: 'var(--font-mono)', fontWeight: '700', background: visibleTab === 'ended' ? 'var(--surface-2)' : 'var(--surface)', color: 'var(--muted)', border: '1px solid var(--border)' }}>
-                {endedMarkets.length}
-              </span>
-            </button>
-          </div>
-
-          {/* market cards */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: sm ? '16px' : '0' }}>
-            {visibleTab === 'available' && (
-              availableItems.length === 0 ? (
-                <div style={{ padding: '24px', borderRadius: '12px', border: '1px dashed var(--border)', color: 'var(--muted)', fontSize: '12px', textAlign: 'center', fontFamily: 'var(--font-mono)' }}>
-                  No open bets right now
-                </div>
-              ) : availableItems.map((item, i) =>
-                item.type === 'group' ? (
-                  <GroupedEventCard
-                    key={item.eventTitle}
-                    eventTitle={item.eventTitle}
-                    markets={item.markets}
-                    selectedId={sm?.id ?? null}
-                    onSelect={m => { setSelectedMarket(m); setActiveTab('available') }}
-                  />
-                ) : (
-                  <BettingCard key={item.market.id} market={item.market} selected={sm?.id === item.market.id} onClick={() => { setSelectedMarket(item.market); setActiveTab('available') }} />
-                )
-              )
-            )}
-            {visibleTab === 'ended' && (
-              endedMarkets.length === 0 ? (
-                <div style={{ padding: '24px', borderRadius: '12px', border: '1px dashed var(--border)', color: 'var(--muted)', fontSize: '12px', textAlign: 'center', fontFamily: 'var(--font-mono)' }}>
-                  No ended bets yet
-                </div>
-              ) : endedMarkets.map(m => (
-                <EndedMarketRow key={m.id} market={m} selected={sm?.id === m.id} onClick={() => setSelectedMarket(m)} />
-              ))
-            )}
-          </div>
-
-          {/* bet widget + positions + holders */}
-          {sm && odds && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
-
+          {sm && odds ? (
+            <>
               {/* bet widget */}
               <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '14px', overflow: 'hidden' }}>
                 <div style={{ padding: '14px 16px 12px', borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}>
@@ -731,6 +728,10 @@ export default function MarketPage() {
                   </div>
                 </div>
               )}
+            </>
+          ) : (
+            <div style={{ padding: '24px', background: 'var(--surface)', border: '1px dashed var(--border)', borderRadius: '14px', textAlign: 'center' }}>
+              <p style={{ color: 'var(--muted)', fontSize: '13px', margin: 0 }}>Select a bet to place your position</p>
             </div>
           )}
         </div>
