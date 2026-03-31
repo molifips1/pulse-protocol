@@ -13,8 +13,11 @@ export async function POST(req: NextRequest) {
   }
 
   // Delete dependents first (foreign key order)
-  await supabase.from('bets').delete().neq('id', '00000000-0000-0000-0000-000000000000')
-  await supabase.from('oracle_events').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+  await supabase.from('bets').delete().not('id', 'is', null)
+  const { error: oeErr } = await supabase.from('oracle_events').delete().not('market_id', 'is', null)
+  if (oeErr) {
+    return NextResponse.json({ error: `Failed to delete oracle_events: ${oeErr.message}` }, { status: 500 })
+  }
 
   const { error: marketsErr, count: marketsCount } = await supabase
     .from('markets')
