@@ -14,8 +14,7 @@ export async function GET() {
     const data = await res.json()
     const all = data.streamers || []
     const casinoOnly = all.filter((s: any) => s.category === 'casino')
-    console.log('[live-streamers] total:', all.length, '| casino:', casinoOnly.length, '| categories:', JSON.stringify(all.map((s: any) => ({ ch: s.channel, cat: s.category }))))
-    return NextResponse.json({ streamers: casinoOnly })
+    return NextResponse.json({ streamers: casinoOnly, _debug: all.map((s: any) => ({ ch: s.channel, cat: s.category })) })
   } catch {
     return NextResponse.json({ streamers: [] })
   }
