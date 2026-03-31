@@ -273,8 +273,12 @@ app.post("/webhook", async (req, reply) => {
 
   try {
     switch (type) {
-      case "stream_live":    await handleStreamLive(data);   break;
-      case "market_create":  await handleMarketCreate(data); break;
+      case "market_create":
+        app.log.warn("market_create disabled — markets are created manually");
+        break;
+      case "stream_live":
+        app.log.warn("stream_live disabled — markets are created manually");
+        break;
       case "market_settle":  await handleMarketSettle(data); break;
       case "market_void":    await handleMarketVoid(data);   break;
       default:
