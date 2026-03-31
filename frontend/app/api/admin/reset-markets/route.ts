@@ -31,5 +31,6 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     success: true,
     deleted: { markets: marketsCount },
+    v: 4,
   })
 }
