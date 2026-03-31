@@ -789,7 +789,7 @@ async function mainLoop() {
     await fetchJson(
       `${ORACLE_URL}/webhook/live-streamers-update`,
       { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-pulse-secret': WEBHOOK_SECRET } },
-      { streamers: liveStreamers.map(s => ({ channel: s.channel, viewers: s.viewers, thumbnail: s.thumbnail || null })) }
+      { streamers: liveStreamers.map(s => ({ channel: s.channel, viewers: s.viewers, thumbnail: s.thumbnail || null, category: getStreamContentType(s) })) }
     )
   } catch (e) {
     // silent

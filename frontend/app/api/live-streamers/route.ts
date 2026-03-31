@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server'
-import { KNOWN_STREAMERS } from '../../lib/utils'
 
 const ORACLE_URL = process.env.ORACLE_URL || ''
-const knownSet = new Set(KNOWN_STREAMERS.map(s => s.toLowerCase()))
 
 export async function GET() {
   if (!ORACLE_URL) {
@@ -14,9 +12,7 @@ export async function GET() {
     })
     if (!res.ok) return NextResponse.json({ streamers: [] })
     const data = await res.json()
-    const casinoOnly = (data.streamers || []).filter((s: any) =>
-      knownSet.has((s.channel || '').toLowerCase())
-    )
+    const casinoOnly = (data.streamers || []).filter((s: any) => s.category === 'casino')
     return NextResponse.json({ streamers: casinoOnly })
   } catch {
     return NextResponse.json({ streamers: [] })
