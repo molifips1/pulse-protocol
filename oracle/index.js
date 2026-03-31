@@ -47,6 +47,9 @@ async function signResolution(marketId, outcome) {
 
 app.post('/webhook/event-detected', async (req, res) => {
   if (!verifyWebhookSecret(req)) return res.status(401).json({ error: 'Unauthorised' });
+  // Market creation disabled — only Peak Viewership markets are created via admin endpoint
+  console.warn('[ORACLE] event-detected ignored: automated market creation is disabled');
+  return res.json({ success: false, reason: 'automated market creation disabled' });
 
   const {
     streamId, streamerId, streamerWallet, eventType, confidence,
