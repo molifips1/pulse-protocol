@@ -59,6 +59,18 @@ function verifySignature(rawBody: Buffer, sig: string): boolean {
 async function handleMarketCreate(data: any) {
   app.log.info("Creating market for stream %s", data.stream_id);
 
+  // Enforce max 4 open markets per streamer
+  const { count } = await supabase
+    .from("markets")
+    .select("id", { count: "exact", head: true })
+    .eq("stream_id", data.stream_id)
+    .eq("status", "open");
+
+  if ((count ?? 0) >= 4) {
+    app.log.warn("Skipping market create for %s — already at 4 open markets", data.stream_id);
+    return;
+  }
+
   // Write pending market to Supabase first (UI shows it immediately)
   const { data: row, error } = await supabase
     .from("markets")
