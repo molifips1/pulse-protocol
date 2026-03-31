@@ -151,8 +151,6 @@ function BettingCard({
 }
 
 // ─── GroupedEventCard (Polymarket multi-range style) ─────────────────────────
-// Renders markets that share the same event title (split on " | ") as one card
-// with each range as a row: [range label] [prob%] [Buy Yes] [Buy No]
 
 function GroupedEventCard({
   eventTitle, markets, selectedId, onSelect,
@@ -160,7 +158,7 @@ function GroupedEventCard({
   eventTitle: string
   markets: any[]
   selectedId: string | null
-  onSelect: (m: any) => void
+  onSelect: (m: any, side: 'yes' | 'no') => void
 }) {
   const totalVol = markets.reduce((s, m) => {
     const o = calcOdds(m); return s + (o?.totalPool ?? 0)
@@ -172,74 +170,81 @@ function GroupedEventCard({
       borderRadius: '14px', overflow: 'hidden',
     }}>
       {/* header */}
-      <div style={{ padding: '12px 14px 10px', borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '6px' }}>
+      <div style={{ padding: '14px 18px 12px', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
           <div style={{
-            width: '28px', height: '28px', borderRadius: '6px', flexShrink: 0,
+            width: '32px', height: '32px', borderRadius: '8px', flexShrink: 0,
             background: 'linear-gradient(135deg,rgba(59,130,246,0.2),rgba(99,102,241,0.2))',
             border: '1px solid rgba(59,130,246,0.18)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '15px',
           }}>👁</div>
-          <p style={{ color: 'var(--text)', fontSize: '12px', fontWeight: '700', margin: 0, lineHeight: '1.4', flex: 1 }}>
+          <p style={{ color: 'var(--text)', fontSize: '14px', fontWeight: '700', margin: 0, lineHeight: '1.4', flex: 1 }}>
             {eventTitle}
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{
-            width: '5px', height: '5px', borderRadius: '50%',
-            background: 'var(--live)', boxShadow: '0 0 5px var(--live)', flexShrink: 0,
-          }} />
-          <span style={{ color: 'var(--live)', fontSize: '9px', fontWeight: '700', fontFamily: 'var(--font-mono)' }}>LIVE</span>
-          <span style={{ color: 'var(--dim)', fontSize: '9px', fontFamily: 'var(--font-mono)', marginLeft: '4px' }}>
-            ${totalVol.toFixed(0)} Vol.
+          <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'var(--live)', boxShadow: '0 0 5px var(--live)', flexShrink: 0 }} />
+          <span style={{ color: 'var(--live)', fontSize: '10px', fontWeight: '700', fontFamily: 'var(--font-mono)' }}>LIVE</span>
+          <span style={{ color: 'var(--dim)', fontSize: '10px', fontFamily: 'var(--font-mono)', marginLeft: '6px' }}>
+            ${totalVol.toFixed(0)} total vol.
           </span>
         </div>
+      </div>
+
+      {/* column headers */}
+      <div style={{
+        display: 'grid', gridTemplateColumns: '1fr 70px 110px 110px',
+        padding: '7px 18px', background: 'var(--surface-2)',
+        borderBottom: '1px solid var(--border)',
+      }}>
+        {['Outcome', 'Chance', '', ''].map((h, i) => (
+          <span key={i} style={{ color: 'var(--dim)', fontSize: '10px', fontFamily: 'var(--font-mono)', fontWeight: '600', letterSpacing: '0.08em', textAlign: i >= 2 ? 'center' : 'left' }}>{h}</span>
+        ))}
       </div>
 
       {/* range rows */}
       {markets.map((m, i) => {
         const odds = calcOdds(m)
-        const rangeLabel = m.title.split(' | ')[1] ?? m.title
+        const rangeLabel = m.title.split(' | ')[1]?.replace(' viewers', '') ?? m.title
         const isSelected = selectedId === m.id
         return (
           <div
             key={m.id}
             style={{
-              display: 'flex', alignItems: 'center', gap: '8px',
-              padding: '9px 14px',
+              display: 'grid', gridTemplateColumns: '1fr 70px 110px 110px',
+              alignItems: 'center',
+              padding: '13px 18px',
               borderBottom: i < markets.length - 1 ? '1px solid var(--border)' : 'none',
-              background: isSelected ? 'rgba(59,130,246,0.05)' : 'transparent',
+              background: isSelected ? 'rgba(59,130,246,0.04)' : 'transparent',
               transition: 'background 0.12s',
             }}
           >
-            {/* range label */}
-            <span style={{ color: 'var(--text)', fontSize: '12px', fontWeight: '600', minWidth: '80px', flexShrink: 0 }}>
-              {rangeLabel}
-            </span>
-
-            {/* volume under range */}
-            {odds && (
-              <span style={{ color: 'var(--dim)', fontSize: '9px', fontFamily: 'var(--font-mono)', flex: 1, whiteSpace: 'nowrap' }}>
-                ${odds.totalPool.toFixed(0)} Vol.
-              </span>
-            )}
+            {/* range label + volume */}
+            <div>
+              <div style={{ color: 'var(--text)', fontSize: '14px', fontWeight: '700' }}>{rangeLabel}</div>
+              {odds && (
+                <div style={{ color: 'var(--dim)', fontSize: '10px', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
+                  ${odds.totalPool.toFixed(0)} Vol.
+                </div>
+              )}
+            </div>
 
             {/* probability */}
-            <span style={{
-              color: 'var(--text)', fontSize: '14px', fontWeight: '800',
-              fontFamily: 'var(--font-display)', minWidth: '42px', textAlign: 'right', flexShrink: 0,
+            <div style={{
+              color: 'var(--text)', fontSize: '18px', fontWeight: '800',
+              fontFamily: 'var(--font-display)',
             }}>
               {odds ? (odds.yesPercent < 1 ? '<1' : odds.yesPercent) : '—'}%
-            </span>
+            </div>
 
             {/* Buy Yes */}
             <button
-              onClick={() => onSelect(m)}
+              onClick={() => onSelect(m, 'yes')}
               style={{
-                padding: '5px 10px', borderRadius: '6px', border: 'none', cursor: 'pointer',
-                background: isSelected ? 'rgba(59,130,246,0.25)' : 'rgba(59,130,246,0.12)',
-                color: 'var(--yes)', fontSize: '11px', fontWeight: '700', fontFamily: 'var(--font-mono)',
-                whiteSpace: 'nowrap', flexShrink: 0, transition: 'background 0.12s',
+                padding: '9px 0', borderRadius: '8px', border: 'none', cursor: 'pointer',
+                background: isSelected && m.id === selectedId ? 'rgba(59,130,246,0.22)' : 'rgba(59,130,246,0.13)',
+                color: 'var(--yes)', fontSize: '12px', fontWeight: '700', fontFamily: 'var(--font-mono)',
+                whiteSpace: 'nowrap', transition: 'background 0.12s', width: '100%',
               }}
             >
               Buy Yes {odds ? `${odds.yesPercent}¢` : ''}
@@ -247,12 +252,12 @@ function GroupedEventCard({
 
             {/* Buy No */}
             <button
-              onClick={() => onSelect(m)}
+              onClick={() => onSelect(m, 'no')}
               style={{
-                padding: '5px 10px', borderRadius: '6px', border: 'none', cursor: 'pointer',
-                background: isSelected ? 'rgba(239,68,68,0.2)' : 'rgba(239,68,68,0.08)',
-                color: 'var(--no)', fontSize: '11px', fontWeight: '700', fontFamily: 'var(--font-mono)',
-                whiteSpace: 'nowrap', flexShrink: 0, transition: 'background 0.12s',
+                padding: '9px 0', borderRadius: '8px', border: 'none', cursor: 'pointer',
+                background: 'rgba(239,68,68,0.1)',
+                color: 'var(--no)', fontSize: '12px', fontWeight: '700', fontFamily: 'var(--font-mono)',
+                whiteSpace: 'nowrap', transition: 'background 0.12s', width: '100%',
               }}
             >
               Buy No {odds ? `${odds.noPercent}¢` : ''}
@@ -331,6 +336,7 @@ export default function MarketPage() {
 
   const [markets, setMarkets] = useState<any[]>([])
   const [selectedMarket, setSelectedMarket] = useState<any>(null)
+  const [selectedSide, setSelectedSide] = useState<'yes' | 'no'>('yes')
   const [loading, setLoading] = useState(true)
   const [activity, setActivity] = useState<any[]>([])
   const [positions, setPositions] = useState<any[]>([])
@@ -540,7 +546,7 @@ export default function MarketPage() {
                     eventTitle={item.eventTitle}
                     markets={item.markets}
                     selectedId={sm?.id ?? null}
-                    onSelect={m => { setSelectedMarket(m); setActiveTab('available') }}
+                    onSelect={(m, side) => { setSelectedMarket(m); setSelectedSide(side); setActiveTab('available') }}
                   />
                 ) : (
                   <BettingCard key={item.market.id} market={item.market} selected={sm?.id === item.market.id} onClick={() => { setSelectedMarket(item.market); setActiveTab('available') }} />
@@ -684,7 +690,7 @@ export default function MarketPage() {
                   <p style={{ color: 'var(--text)', fontSize: '13px', fontWeight: '600', margin: 0, lineHeight: '1.4' }}>{sm.title}</p>
                 </div>
                 <div style={{ padding: '14px 16px' }}>
-                  <BetWidget market={sm} expired={expired} onSuccess={() => setDataRefresh(n => n + 1)} />
+                  <BetWidget market={sm} expired={expired} forceSide={selectedSide} onSuccess={() => setDataRefresh(n => n + 1)} />
                 </div>
               </div>
 

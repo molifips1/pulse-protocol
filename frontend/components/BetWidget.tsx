@@ -11,16 +11,21 @@ interface Props {
   market: any
   expired: boolean
   onSuccess: () => void
+  forceSide?: 'yes' | 'no'
 }
 
 type BetStep = 'input' | 'approve' | 'confirming' | 'done' | 'error'
 
-export function BetWidget({ market, expired, onSuccess }: Props) {
+export function BetWidget({ market, expired, onSuccess, forceSide }: Props) {
   const { address, isConnected } = useAccount()
   const { openConnectModal } = useConnectModal()
   const config = useConfig()
 
-  const [betSide, setBetSide] = useState<'yes' | 'no'>('yes')
+  const [betSide, setBetSide] = useState<'yes' | 'no'>(forceSide ?? 'yes')
+
+  useEffect(() => {
+    if (forceSide) setBetSide(forceSide)
+  }, [forceSide])
   const [amount, setAmount] = useState('')
   const [step, setStep] = useState<BetStep>('input')
   const [errorMsg, setErrorMsg] = useState('')
@@ -155,66 +160,91 @@ export function BetWidget({ market, expired, onSuccess }: Props) {
 
   return (
     <div>
-      {/* YES / NO toggle */}
-      <div style={{ display: 'flex', background: 'var(--surface-2)', borderRadius: '8px', padding: '3px', gap: '3px', marginBottom: '14px' }}>
-        {(['yes', 'no'] as const).map(s => (
-          <button
-            key={s}
-            onClick={() => setBetSide(s)}
-            disabled={expired}
-            style={{
-              flex: 1, padding: '9px 0', borderRadius: '6px', border: 'none',
-              cursor: expired ? 'not-allowed' : 'pointer',
-              background: betSide === s
-                ? (s === 'yes' ? 'var(--yes-bg)' : 'var(--no-bg)')
-                : 'transparent',
-              color: betSide === s ? (s === 'yes' ? 'var(--yes)' : 'var(--no)') : 'var(--muted)',
-              fontWeight: '700', fontSize: '13px', transition: 'all 0.15s',
-              fontFamily: 'var(--font-mono)',
-            }}
-          >
-            {s.toUpperCase()} ×{s === 'yes' ? odds.yesOdds : odds.noOdds}
-          </button>
-        ))}
+      {/* Buy tab header */}
+      <div style={{ display: 'flex', gap: '0', marginBottom: '14px', borderBottom: '2px solid var(--border)' }}>
+        <div style={{
+          padding: '8px 16px', fontSize: '13px', fontWeight: '700', color: 'var(--text)',
+          borderBottom: '2px solid var(--text)', marginBottom: '-2px', fontFamily: 'var(--font-display)',
+        }}>Buy</div>
+      </div>
+
+      {/* YES / NO pill buttons */}
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+        <button
+          onClick={() => setBetSide('yes')}
+          disabled={expired}
+          style={{
+            flex: 1, padding: '10px 0', borderRadius: '8px', cursor: expired ? 'not-allowed' : 'pointer',
+            border: betSide === 'yes' ? '2px solid var(--yes)' : '2px solid var(--border)',
+            background: betSide === 'yes' ? 'rgba(59,130,246,0.12)' : 'var(--surface-2)',
+            color: betSide === 'yes' ? 'var(--yes)' : 'var(--muted)',
+            fontWeight: '700', fontSize: '14px', transition: 'all 0.15s', fontFamily: 'var(--font-mono)',
+          }}
+        >
+          Yes {odds.yesPercent}¢
+        </button>
+        <button
+          onClick={() => setBetSide('no')}
+          disabled={expired}
+          style={{
+            flex: 1, padding: '10px 0', borderRadius: '8px', cursor: expired ? 'not-allowed' : 'pointer',
+            border: betSide === 'no' ? '2px solid var(--no)' : '2px solid var(--border)',
+            background: betSide === 'no' ? 'rgba(239,68,68,0.1)' : 'var(--surface-2)',
+            color: betSide === 'no' ? 'var(--no)' : 'var(--muted)',
+            fontWeight: '700', fontSize: '14px', transition: 'all 0.15s', fontFamily: 'var(--font-mono)',
+          }}
+        >
+          No {odds.noPercent}¢
+        </button>
       </div>
 
       {/* Amount */}
       <div style={{ marginBottom: '10px' }}>
-        <label style={{ color: 'var(--muted)', fontSize: '11px', display: 'block', marginBottom: '6px', letterSpacing: '0.06em', fontFamily: 'var(--font-mono)' }}>
-          AMOUNT (USDC)
-        </label>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+          <label style={{ color: 'var(--muted)', fontSize: '11px', letterSpacing: '0.06em', fontFamily: 'var(--font-mono)' }}>AMOUNT</label>
+          <span style={{ color: 'var(--dim)', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>Balance $0.00</span>
+        </div>
         <div style={{ position: 'relative' }}>
+          <span style={{
+            position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)',
+            color: 'var(--muted)', fontSize: '18px', fontWeight: '300',
+          }}>$</span>
           <input
             type="number"
             value={amount}
             onChange={e => setAmount(e.target.value)}
-            placeholder="0.00"
+            placeholder="0"
             min="1"
             disabled={expired}
             style={{
               width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '8px',
-              padding: '10px 48px 10px 12px', color: 'var(--text)', fontSize: '15px',
+              padding: '12px 12px 12px 28px', color: 'var(--text)', fontSize: '20px', fontWeight: '700',
               fontFamily: 'var(--font-mono)', outline: 'none', boxSizing: 'border-box',
             }}
           />
-          <span style={{
-            position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
-            color: 'var(--muted)', fontSize: '11px', fontFamily: 'var(--font-mono)',
-          }}>USDC</span>
         </div>
-        <div style={{ display: 'flex', gap: '5px', marginTop: '7px' }}>
-          {[5, 10, 25, 50].map(v => (
+        <div style={{ display: 'flex', gap: '5px', marginTop: '8px' }}>
+          {[1, 5, 10, 100].map(v => (
             <button
               key={v}
               onClick={() => setAmount(String(v))}
               disabled={expired}
               style={{
-                flex: 1, padding: '5px 0', background: 'var(--surface-2)', border: '1px solid var(--border)',
+                flex: 1, padding: '6px 0', background: 'var(--surface-2)', border: '1px solid var(--border)',
                 borderRadius: '6px', color: 'var(--muted)', cursor: expired ? 'not-allowed' : 'pointer',
                 fontSize: '11px', fontFamily: 'var(--font-mono)', fontWeight: '600',
               }}
-            >${v}</button>
+            >+${v}</button>
           ))}
+          <button
+            onClick={() => setAmount('500')}
+            disabled={expired}
+            style={{
+              flex: 1, padding: '6px 0', background: 'var(--surface-2)', border: '1px solid var(--border)',
+              borderRadius: '6px', color: 'var(--muted)', cursor: expired ? 'not-allowed' : 'pointer',
+              fontSize: '11px', fontFamily: 'var(--font-mono)', fontWeight: '600',
+            }}
+          >Max</button>
         </div>
       </div>
 
@@ -264,8 +294,10 @@ export function BetWidget({ market, expired, onSuccess }: Props) {
           : !isConnected
           ? 'Connect Wallet'
           : needsApproval
-          ? 'Approve & Bet'
-          : `Bet ${betSide.toUpperCase()}`}
+          ? 'Approve & Buy'
+          : amountUsdc > 0
+          ? `Buy ${betSide === 'yes' ? 'Yes' : 'No'} — $${amountUsdc.toFixed(2)}`
+          : 'Enter Amount'}
       </button>
     </div>
   )
