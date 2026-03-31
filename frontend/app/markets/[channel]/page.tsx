@@ -40,117 +40,112 @@ function StatusBadge({ status, outcome }: { status: string; outcome?: string }) 
   )
 }
 
-// ─── BettingCard (carousel item) ─────────────────────────────────────────────
+// ─── BettingCard (Polymarket-style grid card) ────────────────────────────────
 
 function BettingCard({
   market, selected, onClick,
 }: { market: any; selected: boolean; onClick: () => void }) {
   const odds = calcOdds(market)
-  const open = market.status === 'open'
-
-  const borderColor = selected
-    ? (open ? 'var(--yes)' : 'rgba(124,58,237,0.7)')
-    : 'var(--border)'
-  const glowShadow = selected
-    ? (open ? '0 0 0 1px var(--yes), 0 8px 32px rgba(59,130,246,0.18)' : '0 0 0 1px rgba(124,58,237,0.5), 0 8px 24px rgba(124,58,237,0.12)')
-    : 'none'
 
   return (
     <button
       onClick={onClick}
       style={{
-        flexShrink: 0,
-        width: '220px',
         background: selected ? 'var(--surface-2)' : 'var(--surface)',
-        border: `1px solid ${borderColor}`,
+        border: `1px solid ${selected ? 'var(--yes)' : 'var(--border)'}`,
         borderRadius: '14px',
         padding: '16px',
         textAlign: 'left',
         cursor: 'pointer',
-        transition: 'box-shadow 0.2s, border-color 0.2s, background 0.2s',
-        boxShadow: glowShadow,
-        opacity: (!open && !selected) ? 0.65 : 1,
-        position: 'relative',
-        overflow: 'hidden',
+        transition: 'all 0.15s',
+        boxShadow: selected ? '0 0 0 1px var(--yes), 0 4px 20px rgba(59,130,246,0.1)' : 'none',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '12px',
+        width: '100%',
       }}
     >
-      {/* faint accent stripe at top */}
-      {selected && (
+      {/* Header: icon + title */}
+      <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
         <div style={{
-          position: 'absolute', top: 0, left: 0, right: 0, height: '2px',
-          background: open
-            ? 'linear-gradient(90deg, var(--yes), rgba(59,130,246,0.3))'
-            : 'linear-gradient(90deg, var(--accent), rgba(124,58,237,0.3))',
-        }} />
-      )}
-
-      {/* status badge */}
-      <div style={{ marginBottom: '10px' }}>
-        <StatusBadge status={market.status} outcome={market.outcome} />
+          width: '34px', height: '34px', borderRadius: '8px', flexShrink: 0,
+          background: 'linear-gradient(135deg, rgba(59,130,246,0.2), rgba(99,102,241,0.2))',
+          border: '1px solid rgba(59,130,246,0.18)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: '16px',
+        }}>🎲</div>
+        <p style={{
+          color: 'var(--text)', fontSize: '13px', fontWeight: '600',
+          lineHeight: '1.45', margin: 0, flex: 1,
+          display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+        }}>
+          {market.title}
+        </p>
       </div>
 
-      {/* question */}
-      <p style={{
-        color: 'var(--text)', fontSize: '12px', fontWeight: '600',
-        lineHeight: '1.5', margin: '0 0 14px',
-        display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-        minHeight: '54px',
-      }}>
-        {market.title}
-      </p>
-
-      {/* big probability numbers */}
+      {/* YES / NO outcome rows */}
       {odds && (
-        <>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '8px' }}>
-            <div>
-              <div style={{
-                fontSize: '28px', fontWeight: '800', fontFamily: 'var(--font-display)',
-                color: 'var(--yes)', lineHeight: 1,
-              }}>
-                {odds.yesPercent}%
-              </div>
-              <div style={{ fontSize: '9px', fontFamily: 'var(--font-mono)', color: 'var(--muted)', letterSpacing: '0.08em', marginTop: '2px' }}>
-                YES ×{odds.yesOdds}
-              </div>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{
-                fontSize: '28px', fontWeight: '800', fontFamily: 'var(--font-display)',
-                color: 'var(--no)', lineHeight: 1,
-              }}>
-                {odds.noPercent}%
-              </div>
-              <div style={{ fontSize: '9px', fontFamily: 'var(--font-mono)', color: 'var(--muted)', letterSpacing: '0.08em', marginTop: '2px', textAlign: 'right' }}>
-                ×{odds.noOdds} NO
-              </div>
-            </div>
-          </div>
-
-          {/* probability bar */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          {/* YES row */}
           <div style={{
-            height: '5px', background: 'var(--surface-2)', borderRadius: '99px',
-            overflow: 'hidden', display: 'flex', marginBottom: '10px',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '8px 10px', borderRadius: '8px',
+            background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.14)',
           }}>
-            <div style={{
-              height: '100%', width: `${odds.yesPercent}%`,
-              background: 'var(--yes)', transition: 'width 0.6s cubic-bezier(.4,0,.2,1)',
-            }} />
-            <div style={{
-              height: '100%', width: `${odds.noPercent}%`,
-              background: 'var(--no)', transition: 'width 0.6s cubic-bezier(.4,0,.2,1)',
-            }} />
+            <span style={{
+              color: 'var(--yes)', fontSize: '14px', fontWeight: '700', fontFamily: 'var(--font-mono)',
+            }}>
+              {odds.yesPercent}%
+            </span>
+            <span style={{
+              padding: '3px 16px', borderRadius: '99px', fontSize: '12px', fontWeight: '700',
+              background: 'rgba(59,130,246,0.18)', color: 'var(--yes)',
+              fontFamily: 'var(--font-mono)',
+            }}>Yes</span>
           </div>
-
-          {/* volume */}
+          {/* NO row */}
           <div style={{
-            fontSize: '10px', fontFamily: 'var(--font-mono)', color: 'var(--dim)',
-            textAlign: 'center',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '8px 10px', borderRadius: '8px',
+            background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.14)',
           }}>
-            ${odds.totalPool.toFixed(0)} vol
+            <span style={{
+              color: 'var(--no)', fontSize: '14px', fontWeight: '700', fontFamily: 'var(--font-mono)',
+            }}>
+              {odds.noPercent}%
+            </span>
+            <span style={{
+              padding: '3px 16px', borderRadius: '99px', fontSize: '12px', fontWeight: '700',
+              background: 'rgba(239,68,68,0.18)', color: 'var(--no)',
+              fontFamily: 'var(--font-mono)',
+            }}>No</span>
           </div>
-        </>
+        </div>
       )}
+
+      {/* Thin probability bar */}
+      {odds && (
+        <div style={{ height: '4px', background: 'var(--surface-2)', borderRadius: '99px', overflow: 'hidden', display: 'flex' }}>
+          <div style={{ height: '100%', width: `${odds.yesPercent}%`, background: 'var(--yes)', transition: 'width 0.6s ease' }} />
+          <div style={{ height: '100%', width: `${odds.noPercent}%`, background: 'var(--no)', transition: 'width 0.6s ease' }} />
+        </div>
+      )}
+
+      {/* Footer: LIVE + volume */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <span style={{
+            width: '6px', height: '6px', borderRadius: '50%',
+            background: 'var(--live)', boxShadow: '0 0 6px var(--live)', display: 'inline-block',
+          }} />
+          <span style={{ color: 'var(--live)', fontSize: '10px', fontWeight: '700', fontFamily: 'var(--font-mono)' }}>LIVE</span>
+        </div>
+        {odds && (
+          <span style={{ color: 'var(--dim)', fontSize: '10px', fontFamily: 'var(--font-mono)' }}>
+            ${odds.totalPool.toFixed(0)} Vol.
+          </span>
+        )}
+      </div>
     </button>
   )
 }
@@ -469,10 +464,9 @@ export default function MarketPage() {
                 </div>
               ) : (
                 <div style={{
-                  display: 'flex', gap: '10px',
-                  overflowX: 'auto', paddingBottom: '12px',
-                  /* hide scrollbar on Firefox */
-                  scrollbarWidth: 'none',
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))',
+                  gap: '12px',
                 }}>
                   {availableMarkets.map(m => (
                     <BettingCard
