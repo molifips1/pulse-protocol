@@ -490,7 +490,7 @@ export default function MarketPage() {
         marginBottom: '20px',
       }}>
         <iframe
-          src={`https://player.kick.com/?channel=${channel}&autoplay=true&muted=false&parent=pulse-protocol1.vercel.app&parent=localhost&parent=localhost:3000`}
+          src={`https://player.kick.com/${channel}?autoplay=true&muted=false`}
           style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
           allowFullScreen
           allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
