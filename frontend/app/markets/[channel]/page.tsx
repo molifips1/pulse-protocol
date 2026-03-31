@@ -318,30 +318,17 @@ export default function MarketPage() {
   const visibleTab = activeTab
 
   return (
-    <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '20px 28px 60px' }}>
+    <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '16px 24px 60px' }}>
 
-      {/* ── breadcrumb + channel header ─────────────────────────────────── */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: '10px',
-        marginBottom: '18px', flexWrap: 'wrap',
-      }}>
-        <Link href="/" style={{
-          color: 'var(--muted)', fontSize: '12px', textDecoration: 'none',
-          fontFamily: 'var(--font-mono)', display: 'flex', alignItems: 'center', gap: '5px',
-        }}>
+      {/* breadcrumb */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px', flexWrap: 'wrap' }}>
+        <Link href="/" style={{ color: 'var(--muted)', fontSize: '12px', textDecoration: 'none', fontFamily: 'var(--font-mono)' }}>
           ← Markets
         </Link>
-
-        <span style={{ color: 'var(--dim)', fontSize: '12px' }}>/</span>
-
-        <span style={{
-          color: 'var(--text)', fontWeight: '700', fontSize: '16px',
-          fontFamily: 'var(--font-display)', letterSpacing: '-0.01em',
-          textTransform: 'capitalize',
-        }}>
+        <span style={{ color: 'var(--dim)' }}>/</span>
+        <span style={{ color: 'var(--text)', fontWeight: '700', fontSize: '15px', fontFamily: 'var(--font-display)', textTransform: 'capitalize' }}>
           {channel}
         </span>
-
         {liveInfo && (
           <span style={{
             display: 'inline-flex', alignItems: 'center', gap: '5px',
@@ -353,354 +340,260 @@ export default function MarketPage() {
             LIVE{liveInfo.viewers ? ` · ${liveInfo.viewers.toLocaleString()}` : ''}
           </span>
         )}
-
-        <a
-          href={`https://kick.com/${channel}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            marginLeft: 'auto', color: 'var(--dim)', fontSize: '11px',
-            fontFamily: 'var(--font-mono)', textDecoration: 'none',
-            display: 'flex', alignItems: 'center', gap: '4px',
-            transition: 'color 0.15s',
-          }}
-        >
+        <a href={`https://kick.com/${channel}`} target="_blank" rel="noopener noreferrer"
+          style={{ marginLeft: 'auto', color: 'var(--dim)', fontSize: '11px', fontFamily: 'var(--font-mono)', textDecoration: 'none' }}>
           kick.com/{channel} ↗
         </a>
       </div>
 
-      {/* stream embed — full width */}
-      <div style={{
-        borderRadius: '16px', overflow: 'hidden',
-        aspectRatio: '16/9', width: '100%',
-        background: 'var(--surface-2)',
-        marginBottom: '20px',
-        boxShadow: '0 4px 32px rgba(0,0,0,0.4)',
-        border: '1px solid var(--border)',
-      }}>
-        <iframe
-          src={`https://player.kick.com/${channel}?autoplay=true&muted=false&parent=pulse-protocol1.vercel.app`}
-          style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
-          allowFullScreen
-          allow="autoplay; fullscreen"
-        />
-      </div>
+      {/* ── main layout: LEFT = stream + detail, RIGHT = markets + bet ── */}
+      <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
 
-      {/* market selector + detail — full width */}
-      <div>
+        {/* ── LEFT: stream + selected market detail ── */}
+        <div style={{ flex: 1, minWidth: 0 }}>
 
-          {/* ── tab switcher ─────────────────────────────────────────────── */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '14px' }}>
-            {/* Available tab */}
-            <button
-              onClick={() => setActiveTab('available')}
-              style={{
-                padding: '7px 16px', borderRadius: '8px', border: 'none', cursor: 'pointer',
-                background: visibleTab === 'available' ? 'var(--surface-2)' : 'transparent',
-                color: visibleTab === 'available' ? 'var(--text)' : 'var(--muted)',
-                fontWeight: '700', fontSize: '13px', fontFamily: 'var(--font-display)',
-                transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: '7px',
-              }}
-            >
-              <span style={{
-                width: '7px', height: '7px', borderRadius: '50%',
-                background: 'var(--yes)',
-                boxShadow: availableMarkets.length > 0 ? '0 0 6px var(--yes)' : 'none',
-                display: 'inline-block', flexShrink: 0,
-              }} />
-              Available Bets
-              <span style={{
-                padding: '1px 7px', borderRadius: '99px', fontSize: '10px',
-                fontFamily: 'var(--font-mono)', fontWeight: '700',
-                background: visibleTab === 'available' ? 'rgba(59,130,246,0.15)' : 'var(--surface)',
-                color: visibleTab === 'available' ? 'var(--yes)' : 'var(--muted)',
+          {/* stream embed */}
+          <div style={{
+            borderRadius: '14px', overflow: 'hidden', aspectRatio: '16/9', width: '100%',
+            background: 'var(--surface-2)', border: '1px solid var(--border)',
+            marginBottom: '20px',
+          }}>
+            <iframe
+              src={`https://player.kick.com/${channel}?autoplay=true&muted=false&parent=pulse-protocol1.vercel.app`}
+              style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+              allowFullScreen allow="autoplay; fullscreen"
+            />
+          </div>
+
+          {/* selected market detail — shown below stream once a card is clicked */}
+          {sm && odds ? (
+            <div>
+              {/* market question + prob card */}
+              <div style={{
+                background: 'var(--surface)', border: '1px solid var(--border)',
+                borderRadius: '16px', padding: '20px 22px', marginBottom: '16px',
+                position: 'relative', overflow: 'hidden',
               }}>
+                <div style={{
+                  position: 'absolute', top: 0, left: 0, right: 0, height: '3px',
+                  background: smOpen
+                    ? 'linear-gradient(90deg, var(--yes), rgba(59,130,246,0))'
+                    : 'linear-gradient(90deg, var(--dim), transparent)',
+                }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', marginBottom: '16px' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <h2 style={{ color: 'var(--text)', fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: '700', margin: '0 0 10px', lineHeight: '1.35' }}>
+                      {sm.title}
+                    </h2>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <StatusBadge status={sm.status} outcome={sm.outcome} />
+                      <span style={{ color: expired ? 'var(--no)' : 'var(--muted)', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>{timeLeft}</span>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ fontSize: '44px', fontWeight: '800', fontFamily: 'var(--font-display)', color: 'var(--yes)', lineHeight: 1 }}>{odds.yesPercent}%</div>
+                    <div style={{ fontSize: '10px', color: 'var(--muted)', fontFamily: 'var(--font-mono)', marginTop: '3px' }}>chance YES</div>
+                  </div>
+                </div>
+                <div style={{ height: '8px', background: 'var(--surface-2)', borderRadius: '99px', overflow: 'hidden', display: 'flex', marginBottom: '12px' }}>
+                  <div style={{ height: '100%', width: `${odds.yesPercent}%`, background: 'linear-gradient(90deg,#3B82F6,#60A5FA)', transition: 'width 0.6s ease' }} />
+                  <div style={{ height: '100%', width: `${odds.noPercent}%`, background: 'linear-gradient(90deg,#EF4444,#F87171)', transition: 'width 0.6s ease' }} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <span style={{ padding: '4px 14px', borderRadius: '99px', fontSize: '12px', fontFamily: 'var(--font-mono)', fontWeight: '700', background: 'var(--yes-bg)', border: '1px solid rgba(59,130,246,0.2)', color: 'var(--yes)' }}>YES ×{odds.yesOdds}</span>
+                    <span style={{ padding: '4px 14px', borderRadius: '99px', fontSize: '12px', fontFamily: 'var(--font-mono)', fontWeight: '700', background: 'var(--no-bg)', border: '1px solid rgba(239,68,68,0.2)', color: 'var(--no)' }}>NO ×{odds.noOdds}</span>
+                  </div>
+                  <span style={{ color: 'var(--muted)', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>${odds.totalPool.toFixed(0)} total volume</span>
+                </div>
+              </div>
+
+              {/* resolution rules */}
+              <div style={{ marginBottom: '16px' }}>
+                <SectionLabel>Resolution rules</SectionLabel>
+                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '14px 16px' }}>
+                  <p style={{ color: 'var(--text)', fontSize: '13px', lineHeight: '1.65', margin: '0 0 8px' }}>
+                    This market resolves <strong>YES</strong> if {sm.title.replace(/^Will\s+/i, '').replace(/\?$/, '')}, as verified by live stream data monitored by the Pulse oracle.
+                    Resolves <strong>NO</strong> if the event does not occur or the stream ends first.
+                  </p>
+                  <p style={{ color: 'var(--muted)', fontSize: '11px', fontFamily: 'var(--font-mono)', margin: 0 }}>
+                    Source: Kick stream oracle · {sm.status === 'open' ? `Closes ${timeLeft}` : 'Closed'}
+                  </p>
+                </div>
+              </div>
+
+              {/* activity feed */}
+              <div>
+                <SectionLabel>Activity feed</SectionLabel>
+                {activity.length === 0 ? (
+                  <p style={{ color: 'var(--muted)', fontSize: '13px', padding: '8px 0' }}>No bets yet — be the first!</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                    {activity.map((bet, i) => (
+                      <div key={i} style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        padding: '9px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '9px',
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <span style={{
+                            padding: '2px 9px', borderRadius: '5px', fontSize: '10px', fontWeight: '800',
+                            fontFamily: 'var(--font-mono)', letterSpacing: '0.05em',
+                            background: bet.side === 'yes' ? 'var(--yes-bg)' : 'var(--no-bg)',
+                            color: bet.side === 'yes' ? 'var(--yes)' : 'var(--no)',
+                          }}>{bet.side.toUpperCase()}</span>
+                          <span style={{ color: 'var(--muted)', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>
+                            {bet.wallet_address.slice(0, 6)}…{bet.wallet_address.slice(-4)}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                          <span style={{ color: 'var(--text)', fontSize: '13px', fontFamily: 'var(--font-mono)', fontWeight: '600' }}>${bet.amount_usdc.toFixed(2)}</span>
+                          {(bet.placed_at || bet.created_at) && (
+                            <span style={{ color: 'var(--dim)', fontSize: '10px', fontFamily: 'var(--font-mono)' }}>
+                              {formatDistanceToNow(new Date(bet.placed_at || bet.created_at), { addSuffix: true })}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            markets.length > 0 && (
+              <div style={{ padding: '24px', background: 'var(--surface)', border: '1px dashed var(--border)', borderRadius: '14px', textAlign: 'center' }}>
+                <p style={{ color: 'var(--muted)', fontSize: '13px', margin: 0 }}>← Select a bet on the right to get started</p>
+              </div>
+            )
+          )}
+
+          {markets.length === 0 && !loading && (
+            <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--muted)', fontFamily: 'var(--font-mono)', fontSize: '13px' }}>
+              No markets for this streamer yet.
+            </div>
+          )}
+        </div>
+
+        {/* ── RIGHT: sticky panel — market tabs + cards + bet widget ── */}
+        <div style={{
+          width: '360px', flexShrink: 0,
+          position: 'sticky', top: '16px',
+          maxHeight: 'calc(100vh - 80px)', overflowY: 'auto',
+          scrollbarWidth: 'none',
+          display: 'flex', flexDirection: 'column', gap: '0',
+        }}>
+
+          {/* tab switcher */}
+          <div style={{ display: 'flex', gap: '4px', marginBottom: '12px' }}>
+            <button onClick={() => setActiveTab('available')} style={{
+              flex: 1, padding: '8px 12px', borderRadius: '8px', border: 'none', cursor: 'pointer',
+              background: visibleTab === 'available' ? 'var(--surface-2)' : 'transparent',
+              color: visibleTab === 'available' ? 'var(--text)' : 'var(--muted)',
+              fontWeight: '700', fontSize: '12px', fontFamily: 'var(--font-display)',
+              transition: 'all 0.15s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+            }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--yes)', boxShadow: availableMarkets.length > 0 ? '0 0 5px var(--yes)' : 'none', flexShrink: 0 }} />
+              Available
+              <span style={{ padding: '1px 6px', borderRadius: '99px', fontSize: '10px', fontFamily: 'var(--font-mono)', fontWeight: '700', background: visibleTab === 'available' ? 'rgba(59,130,246,0.15)' : 'var(--surface)', color: visibleTab === 'available' ? 'var(--yes)' : 'var(--muted)' }}>
                 {availableMarkets.length}
               </span>
             </button>
-
-            {/* Ended tab */}
-            <button
-              onClick={() => setActiveTab('ended')}
-              style={{
-                padding: '7px 16px', borderRadius: '8px', border: 'none', cursor: 'pointer',
-                background: visibleTab === 'ended' ? 'var(--surface-2)' : 'transparent',
-                color: visibleTab === 'ended' ? 'var(--text)' : 'var(--muted)',
-                fontWeight: '700', fontSize: '13px', fontFamily: 'var(--font-display)',
-                transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: '7px',
-              }}
-            >
-              <span style={{
-                width: '7px', height: '7px', borderRadius: '50%',
-                background: 'var(--dim)', display: 'inline-block', flexShrink: 0,
-              }} />
-              Ended Bets
-              <span style={{
-                padding: '1px 7px', borderRadius: '99px', fontSize: '10px',
-                fontFamily: 'var(--font-mono)', fontWeight: '700',
-                background: visibleTab === 'ended' ? 'var(--surface-2)' : 'var(--surface)',
-                color: 'var(--muted)',
-                border: '1px solid var(--border)',
-              }}>
+            <button onClick={() => setActiveTab('ended')} style={{
+              flex: 1, padding: '8px 12px', borderRadius: '8px', border: 'none', cursor: 'pointer',
+              background: visibleTab === 'ended' ? 'var(--surface-2)' : 'transparent',
+              color: visibleTab === 'ended' ? 'var(--text)' : 'var(--muted)',
+              fontWeight: '700', fontSize: '12px', fontFamily: 'var(--font-display)',
+              transition: 'all 0.15s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+            }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--dim)', flexShrink: 0 }} />
+              Ended
+              <span style={{ padding: '1px 6px', borderRadius: '99px', fontSize: '10px', fontFamily: 'var(--font-mono)', fontWeight: '700', background: visibleTab === 'ended' ? 'var(--surface-2)' : 'var(--surface)', color: 'var(--muted)', border: '1px solid var(--border)' }}>
                 {endedMarkets.length}
               </span>
             </button>
           </div>
 
-          {/* ── AVAILABLE: horizontal scroll carousel ────────────────────── */}
-          {visibleTab === 'available' && (
-            <>
-              {availableMarkets.length === 0 ? (
-                <div style={{
-                  padding: '32px 20px', borderRadius: '14px',
-                  border: '1px dashed var(--border)',
-                  color: 'var(--muted)', fontSize: '13px', textAlign: 'center',
-                  fontFamily: 'var(--font-mono)',
-                }}>
-                  No open bets right now — check back soon.
+          {/* market cards */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: sm ? '16px' : '0' }}>
+            {visibleTab === 'available' && (
+              availableMarkets.length === 0 ? (
+                <div style={{ padding: '24px', borderRadius: '12px', border: '1px dashed var(--border)', color: 'var(--muted)', fontSize: '12px', textAlign: 'center', fontFamily: 'var(--font-mono)' }}>
+                  No open bets right now
                 </div>
-              ) : (
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))',
-                  gap: '12px',
-                }}>
-                  {availableMarkets.map(m => (
-                    <BettingCard
-                      key={m.id}
-                      market={m}
-                      selected={sm?.id === m.id}
-                      onClick={() => { setSelectedMarket(m); setActiveTab('available') }}
-                    />
-                  ))}
+              ) : availableMarkets.map(m => (
+                <BettingCard key={m.id} market={m} selected={sm?.id === m.id} onClick={() => { setSelectedMarket(m); setActiveTab('available') }} />
+              ))
+            )}
+            {visibleTab === 'ended' && (
+              endedMarkets.length === 0 ? (
+                <div style={{ padding: '24px', borderRadius: '12px', border: '1px dashed var(--border)', color: 'var(--muted)', fontSize: '12px', textAlign: 'center', fontFamily: 'var(--font-mono)' }}>
+                  No ended bets yet
                 </div>
-              )}
-            </>
-          )}
+              ) : endedMarkets.map(m => (
+                <EndedMarketRow key={m.id} market={m} selected={sm?.id === m.id} onClick={() => setSelectedMarket(m)} />
+              ))
+            )}
+          </div>
 
-          {/* ── ENDED: compact vertical list ─────────────────────────────── */}
-          {visibleTab === 'ended' && (
-            <>
-              {endedMarkets.length === 0 ? (
-                <div style={{
-                  padding: '32px 20px', borderRadius: '14px',
-                  border: '1px dashed var(--border)',
-                  color: 'var(--muted)', fontSize: '13px', textAlign: 'center',
-                  fontFamily: 'var(--font-mono)',
-                }}>
-                  No ended bets yet.
+          {/* bet widget + positions + holders */}
+          {sm && odds && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
+
+              {/* bet widget */}
+              <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '14px', overflow: 'hidden' }}>
+                <div style={{ padding: '14px 16px 12px', borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}>
+                  <div style={{ fontSize: '9px', fontFamily: 'var(--font-mono)', color: 'var(--muted)', letterSpacing: '0.12em', marginBottom: '5px' }}>PLACE BET</div>
+                  <p style={{ color: 'var(--text)', fontSize: '13px', fontWeight: '600', margin: 0, lineHeight: '1.4' }}>{sm.title}</p>
                 </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  {endedMarkets.map(m => (
-                    <EndedMarketRow
-                      key={m.id}
-                      market={m}
-                      selected={sm?.id === m.id}
-                      onClick={() => setSelectedMarket(m)}
-                    />
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-
-        {/* ── selected market detail — two-column: info + bet widget ──── */}
-        {sm && odds && (
-          <div style={{ marginTop: '24px', borderTop: '1px solid var(--border)', paddingTop: '24px' }}>
-            <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start' }}>
-
-              {/* LEFT: full market info + activity */}
-              <div style={{ flex: 1, minWidth: 0 }}>
-
-                {/* market title + prob */}
-                <div style={{
-                  background: 'var(--surface)', border: '1px solid var(--border)',
-                  borderRadius: '16px', padding: '20px 22px', marginBottom: '20px',
-                  position: 'relative', overflow: 'hidden',
-                }}>
-                  <div style={{
-                    position: 'absolute', top: 0, left: 0, right: 0, height: '3px',
-                    background: smOpen
-                      ? 'linear-gradient(90deg, var(--yes), rgba(59,130,246,0))'
-                      : 'linear-gradient(90deg, var(--dim), transparent)',
-                  }} />
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', marginBottom: '16px' }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <h2 style={{
-                        color: 'var(--text)', fontFamily: 'var(--font-display)',
-                        fontSize: '20px', fontWeight: '700', margin: '0 0 10px', lineHeight: '1.35',
-                      }}>
-                        {sm.title}
-                      </h2>
-                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                        <StatusBadge status={sm.status} outcome={sm.outcome} />
-                        <span style={{ color: expired ? 'var(--no)' : 'var(--muted)', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>
-                          {timeLeft}
-                        </span>
-                      </div>
-                    </div>
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div style={{ fontSize: '44px', fontWeight: '800', fontFamily: 'var(--font-display)', color: 'var(--yes)', lineHeight: 1 }}>
-                        {odds.yesPercent}%
-                      </div>
-                      <div style={{ fontSize: '10px', color: 'var(--muted)', fontFamily: 'var(--font-mono)', marginTop: '3px' }}>chance YES</div>
-                    </div>
-                  </div>
-
-                  <div style={{ height: '8px', background: 'var(--surface-2)', borderRadius: '99px', overflow: 'hidden', display: 'flex', marginBottom: '12px' }}>
-                    <div style={{ height: '100%', width: `${odds.yesPercent}%`, background: 'linear-gradient(90deg,#3B82F6,#60A5FA)', transition: 'width 0.6s ease' }} />
-                    <div style={{ height: '100%', width: `${odds.noPercent}%`, background: 'linear-gradient(90deg,#EF4444,#F87171)', transition: 'width 0.6s ease' }} />
-                  </div>
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <span style={{ padding: '4px 14px', borderRadius: '99px', fontSize: '12px', fontFamily: 'var(--font-mono)', fontWeight: '700', background: 'var(--yes-bg)', border: '1px solid rgba(59,130,246,0.2)', color: 'var(--yes)' }}>YES ×{odds.yesOdds}</span>
-                      <span style={{ padding: '4px 14px', borderRadius: '99px', fontSize: '12px', fontFamily: 'var(--font-mono)', fontWeight: '700', background: 'var(--no-bg)', border: '1px solid rgba(239,68,68,0.2)', color: 'var(--no)' }}>NO ×{odds.noOdds}</span>
-                    </div>
-                    <span style={{ color: 'var(--muted)', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>${odds.totalPool.toFixed(0)} total volume</span>
-                  </div>
-                </div>
-
-                {/* resolution rules */}
-                <div style={{ marginBottom: '20px' }}>
-                  <SectionLabel>Resolution rules</SectionLabel>
-                  <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '14px 16px' }}>
-                    <p style={{ color: 'var(--text)', fontSize: '13px', lineHeight: '1.65', margin: '0 0 8px' }}>
-                      This market resolves <strong>YES</strong> if {sm.title.replace(/^Will\s+/i, '').replace(/\?$/, '')}, as verified by live stream data monitored by the Pulse oracle.
-                      Resolves <strong>NO</strong> if the event does not occur or the stream ends first.
-                    </p>
-                    <p style={{ color: 'var(--muted)', fontSize: '11px', fontFamily: 'var(--font-mono)', margin: 0 }}>
-                      Source: Kick stream oracle · {sm.status === 'open' ? `Closes ${timeLeft}` : 'Closed'}
-                    </p>
-                  </div>
-                </div>
-
-                {/* activity feed */}
-                <div>
-                  <SectionLabel>Activity feed</SectionLabel>
-                  {activity.length === 0 ? (
-                    <p style={{ color: 'var(--muted)', fontSize: '13px', padding: '12px 0' }}>No bets yet — be the first!</p>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                      {activity.map((bet, i) => (
-                        <div key={i} style={{
-                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                          padding: '9px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '9px',
-                        }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <span style={{
-                              padding: '2px 9px', borderRadius: '5px', fontSize: '10px', fontWeight: '800',
-                              fontFamily: 'var(--font-mono)', letterSpacing: '0.05em',
-                              background: bet.side === 'yes' ? 'var(--yes-bg)' : 'var(--no-bg)',
-                              color: bet.side === 'yes' ? 'var(--yes)' : 'var(--no)',
-                            }}>{bet.side.toUpperCase()}</span>
-                            <span style={{ color: 'var(--muted)', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>
-                              {bet.wallet_address.slice(0, 6)}…{bet.wallet_address.slice(-4)}
-                            </span>
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                            <span style={{ color: 'var(--text)', fontSize: '13px', fontFamily: 'var(--font-mono)', fontWeight: '600' }}>
-                              ${bet.amount_usdc.toFixed(2)}
-                            </span>
-                            {(bet.placed_at || bet.created_at) && (
-                              <span style={{ color: 'var(--dim)', fontSize: '10px', fontFamily: 'var(--font-mono)' }}>
-                                {formatDistanceToNow(new Date(bet.placed_at || bet.created_at), { addSuffix: true })}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                <div style={{ padding: '14px 16px' }}>
+                  <BetWidget market={sm} expired={expired} onSuccess={() => setDataRefresh(n => n + 1)} />
                 </div>
               </div>
 
-              {/* RIGHT: bet widget + positions + holders */}
-              <div style={{ width: '300px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '12px' }}>
-
-                {/* bet widget */}
-                <div style={{
-                  background: 'var(--surface)', border: '1px solid var(--border)',
-                  borderRadius: '16px', overflow: 'hidden',
-                }}>
-                  <div style={{
-                    padding: '16px 18px 14px', borderBottom: '1px solid var(--border)',
-                    background: 'var(--surface-2)',
-                  }}>
-                    <div style={{ fontSize: '10px', fontFamily: 'var(--font-mono)', color: 'var(--muted)', letterSpacing: '0.1em', marginBottom: '6px' }}>PLACE BET</div>
-                    <p style={{ color: 'var(--text)', fontSize: '14px', fontWeight: '600', margin: 0, lineHeight: '1.4' }}>
-                      {sm.title}
-                    </p>
-                  </div>
-                  <div style={{ padding: '16px 18px' }}>
-                    <BetWidget market={sm} expired={expired} onSuccess={() => setDataRefresh(n => n + 1)} />
+              {/* my positions */}
+              {positions.length > 0 && (
+                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '14px 16px' }}>
+                  <SectionLabel>My Positions</SectionLabel>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                    {positions.map((bet, i) => (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                          <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: '800', fontFamily: 'var(--font-mono)', background: bet.side === 'yes' ? 'var(--yes-bg)' : 'var(--no-bg)', color: bet.side === 'yes' ? 'var(--yes)' : 'var(--no)' }}>{bet.side.toUpperCase()}</span>
+                          <span style={{ color: 'var(--muted)', fontSize: '10px', fontFamily: 'var(--font-mono)' }}>staked</span>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ color: 'var(--text)', fontSize: '12px', fontFamily: 'var(--font-mono)', fontWeight: '600' }}>${bet.amount_usdc.toFixed(2)}</div>
+                          <div style={{ color: 'var(--muted)', fontSize: '10px', fontFamily: 'var(--font-mono)' }}>→ ${bet.potential_payout_usdc?.toFixed(2) || '—'}</div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
+              )}
 
-                {/* my positions */}
-                {positions.length > 0 && (
-                  <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '14px', padding: '16px 18px' }}>
-                    <SectionLabel>My Positions</SectionLabel>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      {positions.map((bet, i) => (
-                        <div key={i} style={{
-                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                          padding: '9px 12px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '9px',
-                        }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{
-                              padding: '2px 9px', borderRadius: '5px', fontSize: '10px', fontWeight: '800', fontFamily: 'var(--font-mono)',
-                              background: bet.side === 'yes' ? 'var(--yes-bg)' : 'var(--no-bg)',
-                              color: bet.side === 'yes' ? 'var(--yes)' : 'var(--no)',
-                            }}>{bet.side.toUpperCase()}</span>
-                            <span style={{ color: 'var(--muted)', fontSize: '10px', fontFamily: 'var(--font-mono)' }}>staked</span>
-                          </div>
-                          <div style={{ textAlign: 'right' }}>
-                            <div style={{ color: 'var(--text)', fontSize: '12px', fontFamily: 'var(--font-mono)', fontWeight: '600' }}>${bet.amount_usdc.toFixed(2)}</div>
-                            <div style={{ color: 'var(--muted)', fontSize: '10px', fontFamily: 'var(--font-mono)' }}>→ ${bet.potential_payout_usdc?.toFixed(2) || '—'}</div>
-                          </div>
+              {/* top holders */}
+              {topHolders.length > 0 && (
+                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '14px 16px' }}>
+                  <SectionLabel>Top Holders</SectionLabel>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {topHolders.map((h, i) => (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 10px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                          <span style={{ color: 'var(--dim)', fontSize: '10px', fontFamily: 'var(--font-mono)', width: '16px', textAlign: 'center', fontWeight: '700' }}>
+                            {i === 0 ? '🥇' : i === 1 ? '🥈' : `#${i + 1}`}
+                          </span>
+                          <span style={{ color: 'var(--muted)', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>{h.addr.slice(0, 6)}…{h.addr.slice(-4)}</span>
                         </div>
-                      ))}
-                    </div>
+                        <span style={{ color: 'var(--text)', fontSize: '12px', fontFamily: 'var(--font-mono)', fontWeight: '600' }}>${h.total.toFixed(2)}</span>
+                      </div>
+                    ))}
                   </div>
-                )}
-
-                {/* top holders */}
-                {topHolders.length > 0 && (
-                  <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '14px', padding: '16px 18px' }}>
-                    <SectionLabel>Top Holders</SectionLabel>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                      {topHolders.map((h, i) => (
-                        <div key={i} style={{
-                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                          padding: '8px 12px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '9px',
-                        }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ color: i === 0 ? '#F59E0B' : 'var(--dim)', fontSize: '10px', fontFamily: 'var(--font-mono)', width: '16px', textAlign: 'center', fontWeight: '700' }}>
-                              {i === 0 ? '🥇' : i === 1 ? '🥈' : `#${i + 1}`}
-                            </span>
-                            <span style={{ color: 'var(--muted)', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>
-                              {h.addr.slice(0, 6)}…{h.addr.slice(-4)}
-                            </span>
-                          </div>
-                          <span style={{ color: 'var(--text)', fontSize: '12px', fontFamily: 'var(--font-mono)', fontWeight: '600' }}>${h.total.toFixed(2)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
-        {markets.length === 0 && !loading && (
-          <div style={{ textAlign: 'center', padding: '64px 0', color: 'var(--muted)', fontFamily: 'var(--font-mono)', fontSize: '13px' }}>
-            No markets for this streamer yet.
-          </div>
-        )}
       </div>
     </div>
   )
