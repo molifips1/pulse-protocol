@@ -392,12 +392,12 @@ export default function MarketPage() {
     go()
   }, [selectedMarket?.id, address, dataRefresh])
 
-  // Live info — poll every 10s for real-time viewer count
+  // Live info — fetch directly from Kick every 10s for accurate real-time data
   useEffect(() => {
     const fetchLive = () => {
-      fetch('/api/live-streamers').then(r => r.json()).then(d => {
-        const streamer = (d.streamers || []).find((s: any) => s.channel.toLowerCase() === channel)
-        if (streamer) setLiveInfo({ viewers: streamer.viewers })
+      fetch(`/api/kick-live/${channel}`).then(r => r.json()).then(d => {
+        if (d.isLive) setLiveInfo({ viewers: d.viewers })
+        else setLiveInfo(null)
       }).catch(() => {})
     }
     fetchLive()
