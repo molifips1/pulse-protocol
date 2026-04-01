@@ -8,76 +8,82 @@ const KICK_HEADERS = {
   'Origin': 'https://kick.com',
 }
 
-async function checkBatch(channels: string[]): Promise<any[]> {
-  const query = channels.map(c => `channels[]=${encodeURIComponent(c)}`).join('&')
-  const res = await fetch(`https://kick.com/api/v2/channels?${query}`, {
-    headers: KICK_HEADERS,
-    next: { revalidate: 0 },
-  })
-  if (!res.ok) return []
-  const data = await res.json()
-  if (!Array.isArray(data)) return []
+// Try Kick v2 batch for up to 25 channels — returns null if the API itself failed
+async function tryBatch(channels: string[]): Promise<any[] | null> {
+  try {
+    const query = channels.map(c => `channels[]=${encodeURIComponent(c)}`).join('&')
+    const res = await fetch(`https://kick.com/api/v2/channels?${query}`, {
+      headers: KICK_HEADERS,
+      next: { revalidate: 0 },
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+    if (!Array.isArray(data)) return null
 
-  const live: any[] = []
-  for (const ch of data) {
-    const stream = ch.current_livestream || ch.livestream
-    const isLive = ch.is_live || !!stream
-    if (isLive && stream) {
-      live.push({
-        channel: ch.slug,
-        viewers: ch.viewer_count || stream.viewer_count || 0,
-        thumbnail: stream.thumbnail?.url || null,
-        category: stream.categories?.[0]?.name || '',
+    return data
+      .filter((ch: any) => {
+        const stream = ch.current_livestream || ch.livestream
+        return (ch.is_live || !!stream) && stream
       })
-    }
+      .map((ch: any) => {
+        const stream = ch.current_livestream || ch.livestream
+        return {
+          channel: ch.slug,
+          viewers: ch.viewer_count || stream.viewer_count || 0,
+          thumbnail: stream.thumbnail?.url || null,
+          category: stream.categories?.[0]?.name || '',
+        }
+      })
+  } catch {
+    return null
   }
-  return live
 }
 
-async function checkIndividual(channel: string): Promise<any | null> {
-  const res = await fetch(`https://kick.com/api/v1/channels/${channel}`, {
-    headers: KICK_HEADERS,
-    next: { revalidate: 0 },
-  })
-  if (!res.ok) return null
-  const data = await res.json()
-  if (!data?.livestream) return null
-  return {
-    channel,
-    viewers: data.livestream.viewer_count || 0,
-    thumbnail: data.livestream.thumbnail?.url || null,
-    category: data.livestream.categories?.[0]?.name || '',
+// Oracle cache fallback
+async function fromOracleCache(): Promise<any[] | null> {
+  const oracleUrl = process.env.ORACLE_URL
+  if (!oracleUrl) return null
+  try {
+    const res = await fetch(`${oracleUrl}/live-streamers`, { next: { revalidate: 0 } })
+    if (!res.ok) return null
+    const data = await res.json()
+    const all: any[] = data.streamers || []
+    return all.filter((s: any) =>
+      KNOWN_STREAMERS.includes((s.channel || s.name || '').toLowerCase())
+    )
+  } catch {
+    return null
   }
 }
 
 export async function GET() {
   try {
     const live: any[] = []
+    let batchOk = true
 
-    // Try v2 batch first (25 channels per request)
-    let batchWorked = false
+    // Kick v2 batch: 3 requests for ~72 channels
     for (let i = 0; i < KNOWN_STREAMERS.length; i += 25) {
       const batch = KNOWN_STREAMERS.slice(i, i + 25)
-      const results = await checkBatch(batch)
-      if (i === 0 && results.length === 0 && batch.length > 0) {
-        // v2 might have failed — fall through to v1
+      const result = await tryBatch(batch)
+      if (result === null) {
+        batchOk = false
         break
       }
-      batchWorked = true
-      live.push(...results)
+      live.push(...result)
     }
 
-    // Fall back to individual v1 calls if batch failed
-    if (!batchWorked) {
-      const promises = KNOWN_STREAMERS.map(c => checkIndividual(c))
-      const results = await Promise.allSettled(promises)
-      for (const r of results) {
-        if (r.status === 'fulfilled' && r.value) live.push(r.value)
+    // If v2 failed entirely, fall back to oracle cache
+    if (!batchOk) {
+      const cached = await fromOracleCache()
+      if (cached && cached.length > 0) {
+        cached.sort((a: any, b: any) => (b.viewers || 0) - (a.viewers || 0))
+        return NextResponse.json({ streamers: cached, source: 'cache' })
       }
+      return NextResponse.json({ streamers: [] })
     }
 
     live.sort((a, b) => b.viewers - a.viewers)
-    return NextResponse.json({ streamers: live })
+    return NextResponse.json({ streamers: live, source: 'kick' })
   } catch {
     return NextResponse.json({ streamers: [] })
   }
