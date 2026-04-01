@@ -9,6 +9,7 @@ export const KNOWN_STREAMERS = [
   'viktoria_sun','robertolovely','rombears','zpaic0','renzrzkzbhsfw','jo1nder','moratiar',
   'skinnyoungster','sparta4elo','hutonis4','striker6x6','opmbaby_','tobbianoq','playermaketv',
   'disthydbeast','slowl33','moneyneedoff','voryndor','ketlerrr52','misterjack1995','goert08','hoodden',
+  'hstikkytokky','cuffem','shnaggyhose','danludan2311','artemgraph','thedoctor','generalqw77',
 ]
 
 export function getStreamerFromTitle(title: string): string | null {
