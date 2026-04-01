@@ -703,22 +703,38 @@ async function batchCheckLive(channels) {
     const result = await fetchJson(`https://kick.com/api/v2/channels?${query}`, {
       headers: { 'Referer': 'https://kick.com', 'Origin': 'https://kick.com' }
     })
-    if (result.status !== 200 || !Array.isArray(result.data)) {
+    if (result.status !== 200) {
       console.log(`[DETECTOR] Kick v2 batch API ${result.status} — falling back to v1`)
-      return null // signal to fall back
+      return null
+    }
+    // Log raw structure of first item so we can see the actual shape
+    const raw = result.data
+    if (!Array.isArray(raw)) {
+      console.log(`[DETECTOR] Kick v2 unexpected response type: ${typeof raw} — keys: ${raw ? Object.keys(raw).join(', ') : 'null'}`)
+      console.log(`[DETECTOR] Raw snippet: ${JSON.stringify(raw).slice(0, 300)}`)
+      return null
+    }
+    console.log(`[DETECTOR] v2 returned ${raw.length} channels`)
+    if (raw.length > 0) {
+      const sample = raw[0]
+      console.log(`[DETECTOR] v2 sample keys: ${Object.keys(sample).join(', ')}`)
+      console.log(`[DETECTOR] v2 sample: ${JSON.stringify(sample).slice(0, 400)}`)
     }
     const live = []
-    for (const ch of result.data) {
-      if (ch.is_live && ch.current_livestream) {
+    for (const ch of raw) {
+      // Try multiple possible field names for live status
+      const isLive = ch.is_live || !!ch.livestream || !!ch.current_livestream
+      const stream = ch.current_livestream || ch.livestream
+      if (isLive && stream) {
         live.push({
           channel: ch.slug,
           isLive: true,
-          title: ch.current_livestream.session_title || '',
-          category: ch.current_livestream.categories?.[0]?.slug || 'other',
-          category_name: ch.current_livestream.categories?.[0]?.name || 'Live Stream',
-          viewers: ch.viewer_count || ch.current_livestream.viewer_count || 0,
+          title: stream.session_title || '',
+          category: stream.categories?.[0]?.slug || 'other',
+          category_name: stream.categories?.[0]?.name || 'Live Stream',
+          viewers: ch.viewer_count || stream.viewer_count || 0,
           streamer_name: ch.slug,
-          thumbnail: ch.current_livestream.thumbnail?.url || null,
+          thumbnail: stream.thumbnail?.url || null,
           chatRoomId: ch.chatroom?.id || null
         })
       }
