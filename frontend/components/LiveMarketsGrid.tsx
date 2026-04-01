@@ -31,7 +31,7 @@ export function LiveMarketsGrid() {
     const channel = supabase.channel('markets-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'markets' }, fetchData)
       .subscribe()
-    const streamPoll = setInterval(fetchData, 60_000)
+    const streamPoll = setInterval(fetchData, 30_000)
     return () => { supabase.removeChannel(channel); clearInterval(streamPoll) }
   }, [])
 
