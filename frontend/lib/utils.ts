@@ -33,3 +33,31 @@ export function calcOdds(market: { total_yes_usdc: number; total_no_usdc: number
     : market.initial_no_odds || 2.0
   return { totalPool, yesPercent, noPercent, yesOdds, noOdds }
 }
+
+export interface BucketPool {
+  bucket_id: 'A' | 'B' | 'C' | 'D'
+  pool_usdc: number
+  seed_usdc: number
+}
+
+export interface BucketPrice {
+  bucket_id:   'A' | 'B' | 'C' | 'D'
+  price:       number   // 0–1
+  implied_pct: number   // price * 100
+  odds:        number   // 1 / price
+}
+
+export function calculatePrice(buckets: BucketPool[]): BucketPrice[] {
+  const total = buckets.reduce((sum, b) => sum + b.pool_usdc + b.seed_usdc, 0)
+
+  return buckets.map(b => {
+    const effective = b.pool_usdc + b.seed_usdc
+    const price = total > 0 ? effective / total : 0.25
+    return {
+      bucket_id:   b.bucket_id,
+      price:       parseFloat(price.toFixed(6)),
+      implied_pct: parseFloat((price * 100).toFixed(2)),
+      odds:        parseFloat((1 / price).toFixed(4)),
+    }
+  })
+}
