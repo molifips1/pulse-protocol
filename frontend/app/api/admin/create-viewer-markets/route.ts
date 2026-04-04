@@ -25,27 +25,38 @@ function hourWindow(): string {
   return `${fmt(start)} - ${fmt(end)}`
 }
 
+export async function GET(req: NextRequest) {
+  return handleRequest(req)
+}
+
 export async function POST(req: NextRequest) {
+  return handleRequest(req)
+}
+
+async function handleRequest(req: NextRequest) {
+  // Accept either webhook secret (manual/oracle calls) or Vercel cron auth
   const secret = req.headers.get('x-pulse-secret')
-  if (secret !== process.env.WEBHOOK_SECRET) {
+  const cronAuth = req.headers.get('authorization')
+  const isVercelCron = cronAuth === `Bearer ${process.env.CRON_SECRET}`
+  if (secret !== process.env.WEBHOOK_SECRET && !isVercelCron) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Fetch live streamers from oracle
-  const ORACLE_URL = process.env.ORACLE_URL || ''
-  let streamers: any[] = []
-  if (ORACLE_URL) {
-    try {
-      const res = await fetch(`${ORACLE_URL}/live-streamers`)
-      if (res.ok) {
-        const data = await res.json()
-        streamers = data.streamers || []
-      }
-    } catch { /* oracle unreachable */ }
+  // Fetch live streamers from Supabase (more reliable than oracle in-memory cache)
+  const { data: liveStreams, error: streamsErr } = await supabase
+    .from('streams')
+    .select('stream_key, streamer_id')
+    .eq('is_live', true)
+    .eq('platform', 'kick')
+
+  if (streamsErr) {
+    return NextResponse.json({ error: streamsErr.message }, { status: 500 })
   }
 
+  const streamers = (liveStreams ?? []).map(s => ({ channel: s.stream_key }))
+
   if (streamers.length === 0) {
-    return NextResponse.json({ error: 'No live streamers found from oracle' }, { status: 404 })
+    return NextResponse.json({ message: 'No live streamers right now', created: [], skipped: [] })
   }
 
   const window     = hourWindow()
