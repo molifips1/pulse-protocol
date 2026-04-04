@@ -13,8 +13,12 @@ export const wagmiConfig = getDefaultConfig({
   ssr: true,
 })
 
-export const VAULT_ADDRESS = getAddress(process.env.NEXT_PUBLIC_VAULT_ADDRESS!) as `0x${string}`
-export const USDC_ADDRESS = getAddress(process.env.NEXT_PUBLIC_USDC_ADDRESS!) as `0x${string}`
+const toChecksumAddress = (addr: string | undefined): `0x${string}` => {
+  if (!addr) return '0x0000000000000000000000000000000000000000'
+  try { return getAddress(addr.toLowerCase()) } catch { return addr as `0x${string}` }
+}
+export const VAULT_ADDRESS = toChecksumAddress(process.env.NEXT_PUBLIC_VAULT_ADDRESS)
+export const USDC_ADDRESS = toChecksumAddress(process.env.NEXT_PUBLIC_USDC_ADDRESS)
 
 export const VAULT_ABI = [
   {
