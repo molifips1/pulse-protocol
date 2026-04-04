@@ -346,6 +346,14 @@ export default function MarketPage() {
   const [dataRefresh, setDataRefresh] = useState(0)
   const [liveInfo, setLiveInfo] = useState<{ viewers?: number } | null>(null)
   const [activeTab, setActiveTab] = useState<'available' | 'ended'>('available')
+  const [buckets, setBuckets] = useState<any[]>([])
+
+  // Fetch buckets when selected market changes
+  useEffect(() => {
+    if (!selectedMarket || selectedMarket.market_type !== 'categorical') { setBuckets([]); return }
+    supabase.from('market_buckets').select('*').eq('market_id', selectedMarket.id)
+      .then(({ data }) => setBuckets(data || []))
+  }, [selectedMarket?.id])
 
   // Fetch ALL markets for this channel (open + ended)
   useEffect(() => {
@@ -697,7 +705,7 @@ export default function MarketPage() {
                   <p style={{ color: 'var(--text)', fontSize: '13px', fontWeight: '600', margin: 0, lineHeight: '1.4' }}>{sm.title}</p>
                 </div>
                 <div style={{ padding: '14px 16px' }}>
-                  <BetWidget market={sm} expired={expired} forceSide={selectedSide} onSuccess={() => setDataRefresh(n => n + 1)} />
+                  <BetWidget market={sm} buckets={buckets} expired={expired} forceSide={selectedSide} onSuccess={() => setDataRefresh(n => n + 1)} />
                 </div>
               </div>
 

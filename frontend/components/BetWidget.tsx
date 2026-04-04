@@ -7,8 +7,13 @@ import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { VAULT_ADDRESS, USDC_ADDRESS, VAULT_ABI, ERC20_ABI } from '../lib/wagmi'
 import { calcOdds } from '../lib/utils'
 
+const BUCKET_LABELS: Record<string, string> = { A: '0–5K', B: '5K–10K', C: '10K–20K', D: '20K+' }
+const BUCKET_INDEX: Record<string, number> = { A: 0, B: 1, C: 2, D: 3 }
+const BUCKET_COLORS = ['#3b82f6', '#8b5cf6', '#f59e0b', '#10b981']
+
 interface Props {
   market: any
+  buckets?: any[]
   expired: boolean
   onSuccess: () => void
   forceSide?: 'yes' | 'no'
@@ -16,12 +21,14 @@ interface Props {
 
 type BetStep = 'input' | 'approve' | 'confirming' | 'done' | 'error'
 
-export function BetWidget({ market, expired, onSuccess, forceSide }: Props) {
+export function BetWidget({ market, buckets, expired, onSuccess, forceSide }: Props) {
   const { address, isConnected } = useAccount()
   const { openConnectModal } = useConnectModal()
   const config = useConfig()
 
+  const isCategorical = market?.market_type === 'categorical'
   const [betSide, setBetSide] = useState<'yes' | 'no'>(forceSide ?? 'yes')
+  const [selectedBucket, setSelectedBucket] = useState<string>('A')
 
   useEffect(() => {
     if (forceSide) setBetSide(forceSide)
@@ -34,7 +41,15 @@ export function BetWidget({ market, expired, onSuccess, forceSide }: Props) {
   const amountUsdc = parseFloat(amount) || 0
   const amountRaw = amount ? parseUnits(amount, 6) : 0n
   const odds = calcOdds(market)
-  const selectedOdds = betSide === 'yes' ? odds.yesOdds : odds.noOdds
+
+  // For categorical: calculate price from bucket pools
+  const selectedBucketData = buckets?.find(b => b.bucket_id === selectedBucket)
+  const totalPool = buckets?.reduce((s: number, b: any) => s + (b.pool_usdc || 0) + (b.seed_usdc || 0), 0) || 100
+  const bucketEffective = (selectedBucketData?.pool_usdc || 0) + (selectedBucketData?.seed_usdc || 25)
+  const bucketPrice = totalPool > 0 ? bucketEffective / totalPool : 0.25
+  const bucketOdds = bucketPrice > 0 ? parseFloat((1 / bucketPrice).toFixed(2)) : 4
+
+  const selectedOdds = isCategorical ? bucketOdds : (betSide === 'yes' ? odds.yesOdds : odds.noOdds)
   const potentialPayout = (amountUsdc * selectedOdds).toFixed(2)
 
   // Allowance check
@@ -66,11 +81,12 @@ export function BetWidget({ market, expired, onSuccess, forceSide }: Props) {
     if (!market || !address || !amountRaw) return
     try {
       setStep('confirming')
+      const bucketArg = isCategorical ? BUCKET_INDEX[selectedBucket] : (betSide === 'yes' ? 1 : 0)
       const { result: betId, request } = await simulateContract(config, {
         address: VAULT_ADDRESS,
         abi: VAULT_ABI,
         functionName: 'placeBet',
-        args: [market.contract_market_id as `0x${string}`, betSide === 'yes', amountRaw],
+        args: [market.contract_market_id as `0x${string}`, bucketArg, amountRaw],
         account: address,
       })
       contractBetIdRef.current = betId as string
@@ -107,7 +123,8 @@ export function BetWidget({ market, expired, onSuccess, forceSide }: Props) {
         body: JSON.stringify({
           marketId: market.id,
           walletAddress: address,
-          side: betSide,
+          side: 'yes',
+          bucketId: isCategorical ? selectedBucket : undefined,
           amountUsdc,
           oddsAtPlacement: selectedOdds,
           potentialPayout: parseFloat(potentialPayout),
@@ -130,7 +147,7 @@ export function BetWidget({ market, expired, onSuccess, forceSide }: Props) {
         <div style={{ fontSize: '36px', marginBottom: '8px' }}>✅</div>
         <p style={{ color: 'var(--green)', fontWeight: '700', fontSize: '15px', margin: '0 0 4px' }}>Bet Confirmed</p>
         <p style={{ color: 'var(--muted)', fontSize: '12px', fontFamily: 'var(--font-mono)', margin: '0 0 14px' }}>
-          ${amountUsdc.toFixed(2)} on {betSide.toUpperCase()} · up to ${potentialPayout}
+          ${amountUsdc.toFixed(2)} on {isCategorical ? `${selectedBucket} (${BUCKET_LABELS[selectedBucket]})` : betSide.toUpperCase()} · up to ${potentialPayout}
         </p>
         <a href="/bets" style={{
           display: 'inline-block', padding: '7px 18px', borderRadius: '8px',
@@ -168,35 +185,58 @@ export function BetWidget({ market, expired, onSuccess, forceSide }: Props) {
         }}>Buy</div>
       </div>
 
-      {/* YES / NO pill buttons */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-        <button
-          onClick={() => setBetSide('yes')}
-          disabled={expired}
-          style={{
-            flex: 1, padding: '10px 0', borderRadius: '8px', cursor: expired ? 'not-allowed' : 'pointer',
-            border: betSide === 'yes' ? '2px solid var(--yes)' : '2px solid var(--border)',
-            background: betSide === 'yes' ? 'rgba(59,130,246,0.12)' : 'var(--surface-2)',
-            color: betSide === 'yes' ? 'var(--yes)' : 'var(--muted)',
-            fontWeight: '700', fontSize: '14px', transition: 'all 0.15s', fontFamily: 'var(--font-mono)',
-          }}
-        >
-          Yes {odds.yesPercent}¢
-        </button>
-        <button
-          onClick={() => setBetSide('no')}
-          disabled={expired}
-          style={{
-            flex: 1, padding: '10px 0', borderRadius: '8px', cursor: expired ? 'not-allowed' : 'pointer',
-            border: betSide === 'no' ? '2px solid var(--no)' : '2px solid var(--border)',
-            background: betSide === 'no' ? 'rgba(239,68,68,0.1)' : 'var(--surface-2)',
-            color: betSide === 'no' ? 'var(--no)' : 'var(--muted)',
-            fontWeight: '700', fontSize: '14px', transition: 'all 0.15s', fontFamily: 'var(--font-mono)',
-          }}
-        >
-          No {odds.noPercent}¢
-        </button>
-      </div>
+      {/* Bucket selector (categorical) or YES/NO (binary) */}
+      {isCategorical ? (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '16px' }}>
+          {(['A', 'B', 'C', 'D'] as const).map((b, i) => {
+            const bd = buckets?.find((x: any) => x.bucket_id === b)
+            const pool = (bd?.pool_usdc || 0) + (bd?.seed_usdc || 25)
+            const pct = totalPool > 0 ? Math.round((pool / totalPool) * 100) : 25
+            const color = BUCKET_COLORS[i]
+            const active = selectedBucket === b
+            return (
+              <button key={b} onClick={() => setSelectedBucket(b)} disabled={expired}
+                style={{
+                  padding: '10px 8px', borderRadius: '8px', cursor: expired ? 'not-allowed' : 'pointer',
+                  border: `2px solid ${active ? color : 'var(--border)'}`,
+                  background: active ? `${color}20` : 'var(--surface-2)',
+                  color: active ? color : 'var(--muted)',
+                  fontWeight: '700', fontSize: '12px', transition: 'all 0.15s', fontFamily: 'var(--font-mono)',
+                  textAlign: 'center',
+                }}
+              >
+                <div style={{ fontSize: '11px', marginBottom: '2px' }}>{BUCKET_LABELS[b]}</div>
+                <div style={{ fontSize: '13px' }}>{pct}¢</div>
+              </button>
+            )
+          })}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+          <button
+            onClick={() => setBetSide('yes')}
+            disabled={expired}
+            style={{
+              flex: 1, padding: '10px 0', borderRadius: '8px', cursor: expired ? 'not-allowed' : 'pointer',
+              border: betSide === 'yes' ? '2px solid var(--yes)' : '2px solid var(--border)',
+              background: betSide === 'yes' ? 'rgba(59,130,246,0.12)' : 'var(--surface-2)',
+              color: betSide === 'yes' ? 'var(--yes)' : 'var(--muted)',
+              fontWeight: '700', fontSize: '14px', transition: 'all 0.15s', fontFamily: 'var(--font-mono)',
+            }}
+          >Yes {odds.yesPercent}¢</button>
+          <button
+            onClick={() => setBetSide('no')}
+            disabled={expired}
+            style={{
+              flex: 1, padding: '10px 0', borderRadius: '8px', cursor: expired ? 'not-allowed' : 'pointer',
+              border: betSide === 'no' ? '2px solid var(--no)' : '2px solid var(--border)',
+              background: betSide === 'no' ? 'rgba(239,68,68,0.1)' : 'var(--surface-2)',
+              color: betSide === 'no' ? 'var(--no)' : 'var(--muted)',
+              fontWeight: '700', fontSize: '14px', transition: 'all 0.15s', fontFamily: 'var(--font-mono)',
+            }}
+          >No {odds.noPercent}¢</button>
+        </div>
+      )}
 
       {/* Amount */}
       <div style={{ marginBottom: '10px' }}>

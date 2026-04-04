@@ -22,7 +22,7 @@ export const VAULT_ABI = [
     stateMutability: 'nonpayable',
     inputs: [
       { name: 'marketId', type: 'bytes32' },
-      { name: 'isYes', type: 'bool' },
+      { name: 'bucket', type: 'uint8' },
       { name: 'amount', type: 'uint256' }
     ],
     outputs: [{ name: 'betId', type: 'bytes32' }]
