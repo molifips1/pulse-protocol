@@ -255,126 +255,6 @@ setInterval(async () => {
   }
 }, 2 * 60 * 1000);
 
-// ─── Median helpers ───────────────────────────────────────────────────────────
-
-function median(values) {
-  if (!values.length) return 0;
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 !== 0
-    ? sorted[mid]
-    : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
-}
-
-function getMedianViewers(marketId, resolveTime) {
-  const windowStart = resolveTime.getTime() - 15 * 60 * 1000;  // 15 min before resolve
-  const windowEnd   = resolveTime.getTime() - 10 * 60 * 1000;  // 10 min before resolve
-  const values = (viewerSnapshots.get(marketId) || [])
-    .filter(s => s.ts >= windowStart && s.ts <= windowEnd)
-    .map(s => s.viewers);
-  return median(values);
-}
-
-function mapToBucket(viewers) {
-  if (viewers <  5000)  return 'A';
-  if (viewers < 10000)  return 'B';
-  if (viewers < 20000)  return 'C';
-  return 'D';
-}
-
-// ─── Resolve categorical markets ──────────────────────────────────────────────
-
-async function resolveMarket(market) {
-  const resolveTime = new Date(market.resolve_time);
-
-  // Void if no snapshots were collected in the 15-min window before resolve
-  const allSnaps = viewerSnapshots.get(market.id) || [];
-  const windowSnaps = allSnaps.filter(
-    s => s.ts >= resolveTime.getTime() - 15 * 60 * 1000
-  );
-
-  if (windowSnaps.length === 0) {
-    await supabase.from('markets')
-      .update({ status: 'voided', updated_at: new Date().toISOString() })
-      .eq('id', market.id);
-    console.warn(`[ORACLE] Voided market ${market.id} — no viewer snapshots in window`);
-    viewerSnapshots.delete(market.id);
-    return;
-  }
-
-  const medianViewers = getMedianViewers(market.id, resolveTime);
-  const winningBucket = mapToBucket(medianViewers);
-  // Bucket index: A=0, B=1, C=2, D=3
-  const bucketIndex   = { A: 0, B: 1, C: 2, D: 3 }[winningBucket];
-
-  // Sign and settle on-chain using existing vault ABI:
-  // resolveMarket(bytes32 marketId, uint8 outcome, bytes signature)
-  const contractMarketId = market.contract_market_id;
-  const signature = await signResolution(contractMarketId, bucketIndex);
-
-  let settleTx = null;
-  try {
-    const tx = await vault.resolveMarket(contractMarketId, bucketIndex, signature);
-    const receipt = await tx.wait();
-    settleTx = receipt.hash;
-    console.log(`[ORACLE] Settled on-chain: market=${market.id} bucket=${winningBucket} tx=${settleTx}`);
-  } catch (chainErr) {
-    console.error(`[ORACLE] On-chain settle failed for ${market.id}:`, chainErr.message);
-    // Still update Supabase — the chain may be synced separately
-  }
-
-  // Update market row
-  await supabase.from('markets').update({
-    status:          'resolved',
-    outcome:         winningBucket,
-    winning_bucket:  winningBucket,
-    settlement_tx:   settleTx,
-    oracle_signature: signature,
-    updated_at:      new Date().toISOString(),
-  }).eq('id', market.id);
-
-  // Mark winning bets
-  await supabase.from('bets')
-    .update({ status: 'won', settled_at: new Date().toISOString() })
-    .eq('market_id', market.id)
-    .eq('bucket_id', winningBucket)
-    .eq('status', 'confirmed');
-
-  // Mark losing bets
-  await supabase.from('bets')
-    .update({ status: 'lost', settled_at: new Date().toISOString() })
-    .neq('bucket_id', winningBucket)
-    .eq('market_id', market.id)
-    .eq('status', 'confirmed');
-
-  viewerSnapshots.delete(market.id);
-  console.log(`[ORACLE] Resolved market ${market.id} → bucket ${winningBucket} (${medianViewers} viewers)`);
-}
-
-async function resolveAllDue() {
-  const { data: markets, error } = await supabase
-    .from('markets')
-    .select('id, contract_market_id, resolve_time, streams(stream_key)')
-    .eq('status', 'locked')
-    .eq('market_type', 'categorical')
-    .lte('resolve_time', new Date().toISOString());
-
-  if (error) {
-    console.error('[ORACLE] resolveAllDue query error:', error.message);
-    return;
-  }
-
-  for (const market of (markets || [])) {
-    try {
-      await resolveMarket(market);
-    } catch (err) {
-      console.error(`[ORACLE] resolveMarket failed for ${market.id}:`, err.message);
-    }
-  }
-}
-
-setInterval(resolveAllDue, 60 * 1000);
-
 // ─── Viewer snapshot buffer ────────────────────────────────────────────────────
 // Key: market UUID → array of { ts: epoch ms, viewers: number }
 const viewerSnapshots = new Map();
@@ -446,11 +326,145 @@ async function lockDueMarkets() {
 
     if (!updateErr) {
       console.log(`[ORACLE] Locked market: ${market.id}`);
+    } else {
+      console.error(`[ORACLE] Failed to lock market ${market.id}:`, updateErr.message);
     }
   }
 }
 
 setInterval(lockDueMarkets, 60 * 1000);
+
+// ─── Median helpers ───────────────────────────────────────────────────────────
+
+function median(values) {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 !== 0
+    ? sorted[mid]
+    : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+}
+
+function getMedianViewers(marketId, resolveTime) {
+  const windowStart = resolveTime.getTime() - 15 * 60 * 1000;  // 15 min before resolve
+  const windowEnd   = resolveTime.getTime() - 10 * 60 * 1000;  // 10 min before resolve
+  const values = (viewerSnapshots.get(marketId) || [])
+    .filter(s => s.ts >= windowStart && s.ts <= windowEnd)
+    .map(s => s.viewers);
+  return median(values);
+}
+
+function mapToBucket(viewers) {
+  if (viewers <  5000)  return 'A';
+  if (viewers < 10000)  return 'B';
+  if (viewers < 20000)  return 'C';
+  return 'D';
+}
+
+// ─── Resolve categorical markets ──────────────────────────────────────────────
+
+async function resolveMarket(market) {
+  const resolveTime = new Date(market.resolve_time);
+
+  // Void if no snapshots were collected in the 15-min window before resolve
+  const allSnaps = viewerSnapshots.get(market.id) || [];
+  const windowSnaps = allSnaps.filter(
+    s => s.ts >= resolveTime.getTime() - 15 * 60 * 1000 &&
+         s.ts <= resolveTime.getTime() - 10 * 60 * 1000
+  );
+
+  if (windowSnaps.length === 0) {
+    try {
+      const voidTx = await vault.voidMarket(market.contract_market_id);
+      await voidTx.wait();
+    } catch (voidErr) {
+      console.error(`[ORACLE] vault.voidMarket failed for ${market.id}:`, voidErr.message);
+    }
+    await supabase.from('markets')
+      .update({ status: 'voided', updated_at: new Date().toISOString() })
+      .eq('id', market.id);
+    console.warn(`[ORACLE] Voided market ${market.id} — no viewer snapshots in window`);
+    viewerSnapshots.delete(market.id);
+    return;
+  }
+
+  const medianViewers = getMedianViewers(market.id, resolveTime);
+  const winningBucket = mapToBucket(medianViewers);
+  // Bucket index: A=0, B=1, C=2, D=3
+  const bucketIndex   = { A: 0, B: 1, C: 2, D: 3 }[winningBucket];
+
+  // Sign and settle on-chain using existing vault ABI:
+  // resolveMarket(bytes32 marketId, uint8 outcome, bytes signature)
+  const contractMarketId = market.contract_market_id;
+  const signature = await signResolution(contractMarketId, bucketIndex);
+
+  let settleTx = null;
+  try {
+    const tx = await vault.resolveMarket(contractMarketId, bucketIndex, signature);
+    const receipt = await tx.wait();
+    settleTx = receipt.hash;
+    console.log(`[ORACLE] Settled on-chain: market=${market.id} bucket=${winningBucket} tx=${settleTx}`);
+  } catch (chainErr) {
+    console.error(`[ORACLE] On-chain settle failed for ${market.id}:`, chainErr.message);
+  }
+
+  if (settleTx === null) {
+    // Chain settlement failed — leave market as 'locked' so the next cron tick retries
+    console.error(`[ORACLE] Skipping Supabase update for ${market.id} — on-chain settle failed`);
+    return;
+  }
+
+  // Update market row
+  await supabase.from('markets').update({
+    status:          'resolved',
+    outcome:         winningBucket,
+    winning_bucket:  winningBucket,
+    settlement_tx:   settleTx,
+    oracle_signature: signature,
+    updated_at:      new Date().toISOString(),
+  }).eq('id', market.id);
+
+  // Mark winning bets
+  await supabase.from('bets')
+    .update({ status: 'won', settled_at: new Date().toISOString() })
+    .eq('market_id', market.id)
+    .eq('bucket_id', winningBucket)
+    .eq('status', 'confirmed');
+
+  // Mark losing bets
+  await supabase.from('bets')
+    .update({ status: 'lost', settled_at: new Date().toISOString() })
+    .neq('bucket_id', winningBucket)
+    .eq('market_id', market.id)
+    .eq('status', 'confirmed');
+
+  viewerSnapshots.delete(market.id);
+  console.log(`[ORACLE] Resolved market ${market.id} → bucket ${winningBucket} (${medianViewers} viewers)`);
+}
+
+async function resolveAllDue() {
+  const { data: markets, error } = await supabase
+    .from('markets')
+    .select('id, contract_market_id, resolve_time')
+    .eq('status', 'locked')
+    .eq('market_type', 'categorical')
+    .lte('resolve_time', new Date().toISOString());
+
+  if (error) {
+    console.error('[ORACLE] resolveAllDue query error:', error.message);
+    return;
+  }
+
+  for (const market of (markets || [])) {
+    try {
+      await resolveMarket(market);
+    } catch (err) {
+      console.error(`[ORACLE] resolveMarket failed for ${market.id}:`, err.message);
+    }
+  }
+}
+
+setInterval(resolveAllDue, 60 * 1000);
 
 app.listen(PORT, () => {
   console.log(`[ORACLE] Pulse Oracle running on :${PORT}`);
