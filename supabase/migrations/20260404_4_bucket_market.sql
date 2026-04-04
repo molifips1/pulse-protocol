@@ -31,7 +31,7 @@ ALTER TABLE markets
     CHECK (winning_bucket IN ('A','B','C','D'));
 
 ALTER TABLE markets
-  ADD CONSTRAINT IF NOT EXISTS chk_markets_lock_before_resolve
+  ADD CONSTRAINT chk_markets_lock_before_resolve
     CHECK (lock_time IS NULL OR resolve_time IS NULL OR lock_time < resolve_time);
 
 -- 3. Extend bets table
