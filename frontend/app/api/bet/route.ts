@@ -6,9 +6,11 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY!
 )
 
-// POST /api/bet — called after on-chain tx confirmed
 export async function POST(req: NextRequest) {
-  const { marketId, walletAddress, side, amountUsdc, oddsAtPlacement, potentialPayout, txHash, contractBetId } = await req.json()
+  const {
+    marketId, walletAddress, side, bucketId,
+    amountUsdc, oddsAtPlacement, potentialPayout, txHash, contractBetId
+  } = await req.json()
 
   if (!marketId || !walletAddress || !side || !amountUsdc || !txHash) {
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
@@ -17,7 +19,7 @@ export async function POST(req: NextRequest) {
   // Verify market is still open
   const { data: market, error: marketErr } = await supabase
     .from('markets')
-    .select('status, closes_at, total_yes_usdc, total_no_usdc')
+    .select('status, closes_at, market_type, total_yes_usdc, total_no_usdc')
     .eq('id', marketId)
     .single()
 
@@ -27,6 +29,11 @@ export async function POST(req: NextRequest) {
   }
   if (new Date(market.closes_at) < new Date()) {
     return NextResponse.json({ error: 'Betting window closed' }, { status: 400 })
+  }
+
+  // Categorical markets require a bucketId
+  if (market.market_type === 'categorical' && !bucketId) {
+    return NextResponse.json({ error: 'bucketId required for categorical market' }, { status: 400 })
   }
 
   // Upsert user
@@ -41,13 +48,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Access restricted in your jurisdiction' }, { status: 403 })
   }
 
-  // Insert bet — try with optional columns first, fall back to core columns only
-  let bet: any = null
-  const coreFields = {
+  // Insert bet
+  const coreFields: Record<string, any> = {
     market_id: marketId,
     user_id: user?.id,
     wallet_address: walletAddress.toLowerCase(),
     side,
+    bucket_id: bucketId || null,
     amount_usdc: amountUsdc,
     odds_at_placement: oddsAtPlacement,
     potential_payout_usdc: potentialPayout,
@@ -60,8 +67,8 @@ export async function POST(req: NextRequest) {
     .insert({ ...coreFields, contract_bet_id: contractBetId || null, placed_at: new Date().toISOString() })
     .select().single()
 
+  let bet: any = null
   if (errFull) {
-    // Optional columns may not exist — retry with core fields only
     console.error('[api/bet] full insert failed:', errFull.message, '— retrying with core fields')
     const { data: betCore, error: errCore } = await supabase
       .from('bets').insert(coreFields).select().single()
@@ -74,11 +81,30 @@ export async function POST(req: NextRequest) {
     bet = betFull
   }
 
-  // Update market pool totals
-  const poolUpdate = side === 'yes'
-    ? { total_yes_usdc: (market.total_yes_usdc || 0) + amountUsdc }
-    : { total_no_usdc: (market.total_no_usdc || 0) + amountUsdc }
-  await supabase.from('markets').update(poolUpdate).eq('id', marketId)
+  // Update pool totals
+  if (market.market_type === 'categorical' && bucketId) {
+    // Categorical: update market_buckets.pool_usdc for this bucket
+    const { data: bucket, error: bucketErr } = await supabase
+      .from('market_buckets')
+      .select('pool_usdc')
+      .eq('market_id', marketId)
+      .eq('bucket_id', bucketId)
+      .single()
+
+    if (bucketErr) return NextResponse.json({ error: bucketErr.message }, { status: 500 })
+
+    await supabase
+      .from('market_buckets')
+      .update({ pool_usdc: (bucket?.pool_usdc || 0) + amountUsdc })
+      .eq('market_id', marketId)
+      .eq('bucket_id', bucketId)
+  } else {
+    // Binary: existing logic unchanged
+    const poolUpdate = side === 'yes'
+      ? { total_yes_usdc: (market.total_yes_usdc || 0) + amountUsdc }
+      : { total_no_usdc: (market.total_no_usdc || 0) + amountUsdc }
+    await supabase.from('markets').update(poolUpdate).eq('id', marketId)
+  }
 
   return NextResponse.json({ success: true, betId: bet.id })
 }
