@@ -50,13 +50,13 @@ async function handleRequest(req: NextRequest) {
     .eq('platform', 'kick')
 
   if (streamsErr) {
-    return NextResponse.json({ error: streamsErr.message }, { status: 500 })
+    return NextResponse.json({ error: streamsErr.message, supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL?.slice(0, 30) }, { status: 500 })
   }
 
   const streamers = (liveStreams ?? []).map(s => ({ channel: s.stream_key }))
 
   if (streamers.length === 0) {
-    return NextResponse.json({ message: 'No live streamers right now', created: [], skipped: [] })
+    return NextResponse.json({ message: 'No live streamers right now', created: [], skipped: [], debug: { rowCount: liveStreams?.length ?? 0, hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL, hasKey: !!process.env.SUPABASE_SERVICE_KEY } })
   }
 
   const window     = hourWindow()
