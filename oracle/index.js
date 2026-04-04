@@ -640,6 +640,25 @@ app.post('/webhook/create-categorical-market', async (req, res) => {
   }
 });
 
+// ─── Mint MockUSDC (dev/test only) ────────────────────────────────────────────
+app.post('/webhook/mint-usdc', async (req, res) => {
+  if (!verifyWebhookSecret(req)) return res.status(401).json({ error: 'Unauthorised' });
+  const { to, amount = '1000000000' } = req.body; // default 1000 USDC (6 decimals)
+  if (!to) return res.status(400).json({ error: 'Missing to address' });
+  try {
+    const usdcAddress = process.env.USDC_ADDRESS;
+    if (!usdcAddress) return res.status(500).json({ error: 'USDC_ADDRESS not set' });
+    const usdc = new ethers.Contract(usdcAddress, [
+      'function mint(address to, uint256 amount) external',
+    ], oracleWallet);
+    const tx = await usdc.mint(to, BigInt(amount));
+    await tx.wait();
+    res.json({ success: true, to, amount, tx: tx.hash });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`[ORACLE] Pulse Oracle running on :${PORT}`);
   console.log(`[ORACLE] Signer: ${oracleWallet.address}`);
