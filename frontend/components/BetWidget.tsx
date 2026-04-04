@@ -116,16 +116,14 @@ export function BetWidget({ market, buckets, expired, onSuccess, forceSide, acti
     if (!isConnected) { openConnectModal?.(); return }
     if (!amountRaw) return
     setErrorMsg('')
-    try {
-      if (needsApproval) {
-        setStep('approve')
-        approve({ address: USDC_ADDRESS, abi: ERC20_ABI, functionName: 'approve', args: [VAULT_ADDRESS, maxUint256] })
-      } else {
-        await placeBetNow()
-      }
-    } catch (e: any) {
-      setErrorMsg(e.message || 'Transaction failed')
-      setStep('error')
+    // Always fetch fresh allowance from chain before deciding
+    const { data: freshAllowance } = await refetchAllowance()
+    const hasAllowance = freshAllowance !== undefined && (freshAllowance as bigint) >= amountRaw
+    if (!hasAllowance) {
+      setStep('approve')
+      approve({ address: USDC_ADDRESS, abi: ERC20_ABI, functionName: 'approve', args: [VAULT_ADDRESS, maxUint256] })
+    } else {
+      placeBetNow()
     }
   }
 
