@@ -255,6 +255,42 @@ setInterval(async () => {
   }
 }, 2 * 60 * 1000);
 
+// ─── Lock categorical markets 10 min before resolve_time ──────────────────────
+
+async function lockDueMarkets() {
+  const lockCutoff = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+
+  const { data: markets, error } = await supabase
+    .from('markets')
+    .select('id, resolve_time')
+    .eq('status', 'open')
+    .eq('market_type', 'categorical')
+    .lte('resolve_time', lockCutoff);
+
+  if (error) {
+    console.error('[ORACLE] lockDueMarkets error:', error.message);
+    return;
+  }
+
+  for (const market of (markets || [])) {
+    const lockTime = new Date(
+      new Date(market.resolve_time).getTime() - 10 * 60 * 1000
+    ).toISOString();
+
+    const { error: updateErr } = await supabase
+      .from('markets')
+      .update({ status: 'locked', lock_time: lockTime, closes_at: lockTime })
+      .eq('id', market.id)
+      .eq('status', 'open');    // guard: skip if already locked
+
+    if (!updateErr) {
+      console.log(`[ORACLE] Locked market: ${market.id}`);
+    }
+  }
+}
+
+setInterval(lockDueMarkets, 60 * 1000);
+
 app.listen(PORT, () => {
   console.log(`[ORACLE] Pulse Oracle running on :${PORT}`);
   console.log(`[ORACLE] Signer: ${oracleWallet.address}`);
