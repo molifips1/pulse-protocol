@@ -255,6 +255,47 @@ setInterval(async () => {
   }
 }, 2 * 60 * 1000);
 
+// ─── Viewer snapshot buffer ────────────────────────────────────────────────────
+// Key: market UUID → array of { ts: epoch ms, viewers: number }
+const viewerSnapshots = new Map();
+
+async function pollViewers() {
+  const { data: markets, error } = await supabase
+    .from('markets')
+    .select('id, stream_id, streams(stream_key), resolve_time')
+    .in('status', ['open', 'locked'])
+    .eq('market_type', 'categorical');
+
+  if (error) {
+    console.error('[ORACLE] pollViewers query error:', error.message);
+    return;
+  }
+
+  for (const market of (markets || [])) {
+    const channel = market.streams?.stream_key;
+    if (!channel) continue;
+
+    try {
+      const res = await fetch(`https://kick.com/api/v2/channels/${channel}`);
+      if (!res.ok) continue;
+      const data = await res.json();
+      const viewers = data?.livestream?.viewer_count ?? 0;
+
+      const snaps = viewerSnapshots.get(market.id) || [];
+      snaps.push({ ts: Date.now(), viewers });
+      viewerSnapshots.set(market.id, snaps);
+
+      console.log(`[ORACLE] pollViewers: ${channel} → ${viewers} viewers`);
+    } catch (err) {
+      console.warn(`[ORACLE] pollViewers fetch failed for ${channel}:`, err.message);
+    }
+  }
+}
+
+setInterval(pollViewers, 60 * 1000);
+// Kick off immediately on start so the first snapshot isn't delayed 60s
+pollViewers().catch(err => console.error('[ORACLE] initial pollViewers error:', err.message));
+
 // ─── Lock categorical markets 10 min before resolve_time ──────────────────────
 
 async function lockDueMarkets() {
