@@ -1,6 +1,7 @@
 import { getDefaultConfig } from '@rainbow-me/rainbowkit'
 import { baseSepolia } from 'wagmi/chains'
 import { http } from 'wagmi'
+import { getAddress } from 'viem'
 
 export const wagmiConfig = getDefaultConfig({
   appName: 'Pulse Protocol',
@@ -12,8 +13,8 @@ export const wagmiConfig = getDefaultConfig({
   ssr: true,
 })
 
-export const VAULT_ADDRESS = process.env.NEXT_PUBLIC_VAULT_ADDRESS as `0x${string}`
-export const USDC_ADDRESS = process.env.NEXT_PUBLIC_USDC_ADDRESS as `0x${string}`
+export const VAULT_ADDRESS = getAddress(process.env.NEXT_PUBLIC_VAULT_ADDRESS!) as `0x${string}`
+export const USDC_ADDRESS = getAddress(process.env.NEXT_PUBLIC_USDC_ADDRESS!) as `0x${string}`
 
 export const VAULT_ABI = [
   {
