@@ -42,6 +42,7 @@ export function BetWidget({ market, buckets, expired, onSuccess, forceSide, acti
   const [step, setStep] = useState<BetStep>('input')
   const [errorMsg, setErrorMsg] = useState('')
   const contractBetIdRef = useRef<string | null>(null)
+  const justApprovedRef = useRef(false)
 
   const amountUsdc = parseFloat(amount) || 0
   const amountRaw = amount ? parseUnits(amount, 6) : 0n
@@ -75,7 +76,11 @@ export function BetWidget({ market, buckets, expired, onSuccess, forceSide, acti
   const { isSuccess: betConfirmed } = useWaitForTransactionReceipt({ hash: betTxHash })
 
   useEffect(() => {
-    if (approveConfirmed) { refetchAllowance(); placeBetNow() }
+    if (approveConfirmed) {
+      justApprovedRef.current = true
+      refetchAllowance()
+      placeBetNow()
+    }
   }, [approveConfirmed])
 
   useEffect(() => {
@@ -103,11 +108,12 @@ export function BetWidget({ market, buckets, expired, onSuccess, forceSide, acti
       placeBet(request)
     } catch (e: any) {
       const msg: string = e.shortMessage || e.message || ''
-      if (msg.toLowerCase().includes('allowance') || msg.toLowerCase().includes('transfer amount')) {
+      if (!justApprovedRef.current && (msg.toLowerCase().includes('allowance') || msg.toLowerCase().includes('transfer amount'))) {
         // Stale allowance read — force approval then retry
         setStep('approve')
         approve({ address: USDC_ADDRESS, abi: ERC20_ABI, functionName: 'approve', args: [VAULT_ADDRESS, maxUint256] })
       } else {
+        justApprovedRef.current = false
         setErrorMsg(msg || 'Transaction failed')
         setStep('error')
       }
