@@ -327,6 +327,119 @@ function EndedMarketRow({
   )
 }
 
+// ─── CountdownTimer ───────────────────────────────────────────────────────────
+
+function CountdownTimer({ closesAt }: { closesAt: string }) {
+  const [t, setT] = useState({ hrs: 0, mins: 0, secs: 0, ended: false })
+  useEffect(() => {
+    const update = () => {
+      const diff = new Date(closesAt).getTime() - Date.now()
+      if (diff <= 0) { setT({ hrs: 0, mins: 0, secs: 0, ended: true }); return }
+      setT({ hrs: Math.floor(diff / 3_600_000), mins: Math.floor((diff % 3_600_000) / 60_000), secs: Math.floor((diff % 60_000) / 1_000), ended: false })
+    }
+    update(); const id = setInterval(update, 1000); return () => clearInterval(id)
+  }, [closesAt])
+  if (t.ended) return <span style={{ color: 'var(--no)', fontSize: '11px', fontFamily: 'var(--font-mono)', fontWeight: '700' }}>CLOSED</span>
+  return (
+    <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+      {[{ v: t.hrs, l: 'HRS' }, { v: t.mins, l: 'MINS' }, { v: t.secs, l: 'SECS' }].map(({ v, l }) => (
+        <div key={l} style={{ textAlign: 'center' }}>
+          <div style={{ color: 'var(--no)', fontSize: '20px', fontWeight: '800', fontFamily: 'var(--font-display)', lineHeight: 1, minWidth: '28px' }}>{String(v).padStart(2, '0')}</div>
+          <div style={{ color: 'var(--dim)', fontSize: '7px', fontFamily: 'var(--font-mono)', fontWeight: '600', letterSpacing: '0.1em' }}>{l}</div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ─── CategoricalMarketView (Polymarket-style) ─────────────────────────────────
+
+const CAT_COLORS: Record<string, string> = { A: '#3b82f6', B: '#8b5cf6', C: '#f59e0b', D: '#10b981' }
+
+function CategoricalMarketView({ market, buckets, activeBucket, onSelectBucket, expired }: {
+  market: any; buckets: any[]; activeBucket: string; onSelectBucket: (b: string) => void; expired: boolean
+}) {
+  const totalPool = buckets.reduce((s, b) => s + (b.pool_usdc || 0) + (b.seed_usdc || 25), 0)
+  const getPct = (b: any) => totalPool > 0 ? Math.round(((b.pool_usdc || 0) + (b.seed_usdc || 25)) / totalPool * 100) : 25
+  const totalVol = buckets.reduce((s, b) => s + (b.pool_usdc || 0), 0)
+
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden' }}>
+      {/* Header */}
+      <div style={{ padding: '18px 20px 14px', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', marginBottom: '12px' }}>
+          <div style={{ width: '38px', height: '38px', borderRadius: '9px', background: 'linear-gradient(135deg,rgba(59,130,246,0.2),rgba(99,102,241,0.2))', border: '1px solid rgba(59,130,246,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', flexShrink: 0 }}>👁</div>
+          <h2 style={{ color: 'var(--text)', fontSize: '16px', fontWeight: '700', margin: 0, flex: 1, lineHeight: 1.4 }}>{market.title}</h2>
+          <CountdownTimer closesAt={market.closes_at} />
+        </div>
+        {/* Legend */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+          {buckets.map(b => (
+            <div key={b.bucket_id} style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }} onClick={() => onSelectBucket(b.bucket_id)}>
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: CAT_COLORS[b.bucket_id], flexShrink: 0 }} />
+              <span style={{ color: 'var(--muted)', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>{b.label} {getPct(b)}%</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Probability bar chart */}
+      <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}>
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-end', height: '72px' }}>
+          {buckets.map(b => {
+            const pct = getPct(b)
+            const color = CAT_COLORS[b.bucket_id]
+            const active = activeBucket === b.bucket_id
+            return (
+              <div key={b.bucket_id} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px', cursor: 'pointer' }} onClick={() => onSelectBucket(b.bucket_id)}>
+                <span style={{ color: active ? color : 'var(--muted)', fontSize: '11px', fontWeight: '700', fontFamily: 'var(--font-mono)', transition: 'color 0.15s' }}>{pct}%</span>
+                <div style={{ width: '100%', height: `${Math.max(pct, 8)}%`, background: active ? color : `${color}40`, borderRadius: '4px 4px 0 0', transition: 'all 0.3s ease', minHeight: '6px' }} />
+              </div>
+            )
+          })}
+        </div>
+        <div style={{ marginTop: '6px' }}>
+          <span style={{ color: 'var(--dim)', fontSize: '10px', fontFamily: 'var(--font-mono)' }}>
+            ${totalVol.toFixed(2)} Vol.
+          </span>
+        </div>
+      </div>
+
+      {/* Column headers */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 130px', padding: '7px 20px', borderBottom: '1px solid var(--border)' }}>
+        {['Outcome', 'Chance', ''].map((h, i) => (
+          <span key={i} style={{ color: 'var(--dim)', fontSize: '10px', fontFamily: 'var(--font-mono)', fontWeight: '600', letterSpacing: '0.08em', textAlign: i === 1 ? 'center' : 'left' }}>{h}</span>
+        ))}
+      </div>
+
+      {/* Bucket rows */}
+      {buckets.map((b, i) => {
+        const pct = getPct(b)
+        const vol = b.pool_usdc || 0
+        const active = activeBucket === b.bucket_id
+        const color = CAT_COLORS[b.bucket_id]
+        return (
+          <div key={b.bucket_id} style={{ display: 'grid', gridTemplateColumns: '1fr 80px 130px', alignItems: 'center', padding: '13px 20px', borderBottom: i < buckets.length - 1 ? '1px solid var(--border)' : 'none', background: active ? `${color}08` : 'transparent', transition: 'background 0.12s' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: color, flexShrink: 0 }} />
+                <span style={{ color: 'var(--text)', fontSize: '14px', fontWeight: '700' }}>{b.label}</span>
+              </div>
+              <div style={{ color: 'var(--dim)', fontSize: '10px', fontFamily: 'var(--font-mono)', marginTop: '2px', paddingLeft: '16px' }}>${vol.toFixed(2)} Vol.</div>
+            </div>
+            <div style={{ textAlign: 'center', color: 'var(--text)', fontSize: '18px', fontWeight: '800', fontFamily: 'var(--font-display)' }}>
+              {pct < 1 ? '<1' : pct}%
+            </div>
+            <button onClick={() => onSelectBucket(b.bucket_id)} disabled={expired} style={{ padding: '9px 0', borderRadius: '8px', border: 'none', cursor: expired ? 'not-allowed' : 'pointer', background: active ? color : `${color}20`, color: active ? 'white' : color, fontSize: '12px', fontWeight: '700', fontFamily: 'var(--font-mono)', transition: 'all 0.15s', width: '100%' }}>
+              Buy {pct}¢
+            </button>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function MarketPage() {
@@ -347,6 +460,7 @@ export default function MarketPage() {
   const [liveInfo, setLiveInfo] = useState<{ viewers?: number } | null>(null)
   const [activeTab, setActiveTab] = useState<'available' | 'ended'>('available')
   const [buckets, setBuckets] = useState<any[]>([])
+  const [activeBucket, setActiveBucket] = useState<string>('A')
 
   // Fetch buckets when selected market changes
   useEffect(() => {
@@ -555,7 +669,16 @@ export default function MarketPage() {
                   No open bets right now
                 </div>
               ) : availableItems.map((item, i) =>
-                item.type === 'group' ? (
+                item.type === 'single' && item.market.market_type === 'categorical' ? (
+                  <CategoricalMarketView
+                    key={item.market.id}
+                    market={item.market}
+                    buckets={buckets}
+                    activeBucket={activeBucket}
+                    onSelectBucket={(b) => { setActiveBucket(b); setSelectedMarket(item.market) }}
+                    expired={expired}
+                  />
+                ) : item.type === 'group' ? (
                   <GroupedEventCard
                     key={item.eventTitle}
                     eventTitle={item.eventTitle}
@@ -705,7 +828,7 @@ export default function MarketPage() {
                   <p style={{ color: 'var(--text)', fontSize: '13px', fontWeight: '600', margin: 0, lineHeight: '1.4' }}>{sm.title}</p>
                 </div>
                 <div style={{ padding: '14px 16px' }}>
-                  <BetWidget market={sm} buckets={buckets} expired={expired} forceSide={selectedSide} onSuccess={() => setDataRefresh(n => n + 1)} />
+                  <BetWidget market={sm} buckets={buckets} expired={expired} forceSide={selectedSide} activeBucket={activeBucket} onSuccess={() => setDataRefresh(n => n + 1)} />
                 </div>
               </div>
 

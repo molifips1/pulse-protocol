@@ -17,18 +17,23 @@ interface Props {
   expired: boolean
   onSuccess: () => void
   forceSide?: 'yes' | 'no'
+  activeBucket?: string
 }
 
 type BetStep = 'input' | 'approve' | 'confirming' | 'done' | 'error'
 
-export function BetWidget({ market, buckets, expired, onSuccess, forceSide }: Props) {
+export function BetWidget({ market, buckets, expired, onSuccess, forceSide, activeBucket: activeBucketProp }: Props) {
   const { address, isConnected } = useAccount()
   const { openConnectModal } = useConnectModal()
   const config = useConfig()
 
   const isCategorical = market?.market_type === 'categorical'
   const [betSide, setBetSide] = useState<'yes' | 'no'>(forceSide ?? 'yes')
-  const [selectedBucket, setSelectedBucket] = useState<string>('A')
+  const [selectedBucket, setSelectedBucket] = useState<string>(activeBucketProp ?? 'A')
+
+  useEffect(() => {
+    if (activeBucketProp) setSelectedBucket(activeBucketProp)
+  }, [activeBucketProp])
 
   useEffect(() => {
     if (forceSide) setBetSide(forceSide)
