@@ -100,6 +100,7 @@ async function handleRequest(req: NextRequest) {
         title:         eventTitle,
         status:        'open',
         market_type:   'categorical',
+        event_type:    'peak_viewership',
         category:      'irl',
         stream_id:     streamRow?.id ?? null,
         streamer_id:   streamRow?.streamer_id ?? null,
