@@ -64,7 +64,7 @@ export function BetWidget({ market, buckets, expired, onSuccess, forceSide, acti
   const needsApproval = amountRaw > 0n && (allowance === undefined || allowance < amountRaw)
 
   // Approve
-  const { writeContract: approve, data: approveTxHash } = useWriteContract()
+  const { writeContract: approve, data: approveTxHash, error: approveError } = useWriteContract()
   const { isSuccess: approveConfirmed } = useWaitForTransactionReceipt({ hash: approveTxHash })
 
   // Place bet
@@ -89,6 +89,14 @@ export function BetWidget({ market, buckets, expired, onSuccess, forceSide, acti
   useEffect(() => {
     if (approveConfirmed) placeBetNow()
   }, [approveConfirmed])
+
+  useEffect(() => {
+    if (approveError) {
+      const msg = (approveError as any).shortMessage || approveError.message || 'Approval failed'
+      setErrorMsg(msg)
+      setStep('error')
+    }
+  }, [approveError])
 
   useEffect(() => {
     if (betConfirmed && betTxHash) saveBet(betTxHash)
