@@ -1,5 +1,11 @@
 import { NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 import { KNOWN_STREAMERS } from '@/lib/utils'
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_KEY!
+)
 
 const KICK_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
@@ -72,13 +78,31 @@ export async function GET() {
       live.push(...result)
     }
 
-    // If v2 failed entirely, fall back to oracle cache
+    // If v2 failed entirely, fall back to oracle cache then Supabase
     if (!batchOk) {
       const cached = await fromOracleCache()
       if (cached && cached.length > 0) {
         cached.sort((a: any, b: any) => (b.viewers || 0) - (a.viewers || 0))
         return NextResponse.json({ streamers: cached, source: 'cache' })
       }
+
+      // Final fallback: read is_live from Supabase streams table
+      const { data: liveRows } = await supabase
+        .from('streams')
+        .select('stream_key, viewer_count')
+        .eq('is_live', true)
+        .eq('platform', 'kick')
+      if (liveRows && liveRows.length > 0) {
+        const streamers = liveRows.map((r: any) => ({
+          channel: r.stream_key,
+          viewers: r.viewer_count || 0,
+          thumbnail: null,
+          category: '',
+        }))
+        streamers.sort((a: any, b: any) => b.viewers - a.viewers)
+        return NextResponse.json({ streamers, source: 'supabase' })
+      }
+
       return NextResponse.json({ streamers: [] })
     }
 
