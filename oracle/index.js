@@ -26,7 +26,7 @@ const oracleWallet = new ethers.Wallet(ORACLE_PRIVATE_KEY, provider);
 
 const VAULT_ABI = [
   'function createMarket(bytes32 marketId, address streamer, uint256 bettingWindowSeconds) external',
-  'function resolveMarket(bytes32 marketId, uint8 outcome, bytes calldata signature) external',
+  'function resolveMarket(bytes32 marketId, uint8 outcome) external',
   'function voidMarket(bytes32 marketId) external',
 ];
 
@@ -393,18 +393,16 @@ async function resolveMarket(market) {
   // Bucket index: A=0, B=1, C=2, D=3
   const bucketIndex   = { A: 0, B: 1, C: 2, D: 3 }[winningBucket];
 
-  // Sign and settle on-chain using existing vault ABI:
-  // resolveMarket(bytes32 marketId, uint8 outcome, bytes signature)
+  // Settle on-chain: resolveMarket(bytes32 marketId, uint8 outcome)
   const contractMarketId = market.contract_market_id;
   if (!contractMarketId) {
     console.error(`[ORACLE] market ${market.id} has no contract_market_id — skipping resolve`);
     return;
   }
-  const signature = await signResolution(contractMarketId, bucketIndex);
 
   let settleTx = null;
   try {
-    const tx = await vault.resolveMarket(contractMarketId, bucketIndex, signature);
+    const tx = await vault.resolveMarket(contractMarketId, bucketIndex);
     const receipt = await tx.wait();
     settleTx = receipt.hash;
     console.log(`[ORACLE] Settled on-chain: market=${market.id} bucket=${winningBucket} tx=${settleTx}`);
