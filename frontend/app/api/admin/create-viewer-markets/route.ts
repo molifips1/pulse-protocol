@@ -140,6 +140,7 @@ async function handleRequest(req: NextRequest) {
     created.push(channel)
 
     // Register market on-chain via oracle
+    const ORACLE_URL = process.env.ORACLE_URL || ''
     if (ORACLE_URL) {
       try {
         const streamKey = streamRow?.id ? channel : null
