@@ -488,27 +488,50 @@ const TRACKED_STREAMERS = [
 
 const FRONTEND_URL = process.env.FRONTEND_URL || '';
 
+const KICK_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Accept': 'application/json, text/plain, */*',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Referer': 'https://kick.com',
+  'Origin': 'https://kick.com',
+};
+
+async function checkChannelV1(channel) {
+  try {
+    const res = await fetch(`https://kick.com/api/v1/channels/${channel}`, { headers: KICK_HEADERS });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const stream = data.livestream;
+    if (!stream) return null;
+    return {
+      channel,
+      viewers: stream.viewer_count || 0,
+      category: data.recent_categories?.[0]?.slug || 'irl',
+      title: stream.session_title || 'Live Stream',
+    };
+  } catch { return null; }
+}
+
 async function syncLiveStreamers() {
   const liveChannels = [];
 
-  // Batch check in groups of 25
+  // Try v2 batch first
+  let v2ok = false;
   for (let i = 0; i < TRACKED_STREAMERS.length; i += 25) {
     const batch = TRACKED_STREAMERS.slice(i, i + 25);
     const query = batch.map(c => `channels[]=${encodeURIComponent(c)}`).join('&');
     try {
-      const res = await fetch(`https://kick.com/api/v2/channels?${query}`, {
-        headers: { 'Referer': 'https://kick.com', 'Origin': 'https://kick.com' }
-      });
+      const res = await fetch(`https://kick.com/api/v2/channels?${query}`, { headers: KICK_HEADERS });
       if (!res.ok) {
-        console.warn(`[ORACLE] Kick batch API ${res.status} for batch ${i}`);
-        continue;
+        console.warn(`[ORACLE] Kick v2 batch ${res.status} — will use v1 fallback`);
+        break;
       }
+      v2ok = true;
       const raw = await res.json();
       const items = Array.isArray(raw) ? raw : (raw.data ?? []);
       for (const ch of items) {
         const stream = ch.current_livestream || ch.livestream;
-        const isLive = ch.is_live || !!stream;
-        if (isLive && stream) {
+        if ((ch.is_live || !!stream) && stream) {
           liveChannels.push({
             channel: ch.slug,
             viewers: ch.viewer_count || stream.viewer_count || 0,
@@ -518,9 +541,20 @@ async function syncLiveStreamers() {
         }
       }
     } catch (err) {
-      console.error(`[ORACLE] syncLiveStreamers batch error:`, err.message);
+      console.error(`[ORACLE] v2 batch error:`, err.message);
+      break;
     }
     if (i + 25 < TRACKED_STREAMERS.length) await new Promise(r => setTimeout(r, 1500));
+  }
+
+  // Fall back to v1 individual checks if v2 failed
+  if (!v2ok) {
+    console.log(`[ORACLE] Falling back to v1 API for ${TRACKED_STREAMERS.length} channels`);
+    for (const channel of TRACKED_STREAMERS) {
+      const result = await checkChannelV1(channel);
+      if (result) liveChannels.push(result);
+      await new Promise(r => setTimeout(r, 500));
+    }
   }
 
   // Mark all tracked streams as not live, then upsert live ones
