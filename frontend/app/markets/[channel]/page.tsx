@@ -464,7 +464,7 @@ export default function MarketPage() {
 
   // Fetch buckets when selected market changes
   useEffect(() => {
-    if (!selectedMarket || selectedMarket.market_type !== 'categorical') { setBuckets([]); return }
+    if (!selectedMarket || (selectedMarket.market_type !== 'categorical' && selectedMarket.event_type !== 'peak_viewership')) { setBuckets([]); return }
     supabase.from('market_buckets').select('*').eq('market_id', selectedMarket.id)
       .then(({ data }) => setBuckets(data || []))
   }, [selectedMarket?.id])
@@ -669,7 +669,7 @@ export default function MarketPage() {
                   No open bets right now
                 </div>
               ) : availableItems.map((item, i) =>
-                item.type === 'single' && item.market.market_type === 'categorical' ? (
+                item.type === 'single' && (item.market.market_type === 'categorical' || item.market.event_type === 'peak_viewership') ? (
                   <CategoricalMarketView
                     key={item.market.id}
                     market={item.market}

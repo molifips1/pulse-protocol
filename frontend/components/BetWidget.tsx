@@ -84,6 +84,11 @@ export function BetWidget({ market, buckets, expired, onSuccess, forceSide, acti
 
   const placeBetNow = async () => {
     if (!market || !address || !amountRaw) return
+    if (!market.contract_market_id) {
+      setErrorMsg('Market not yet registered on-chain. Please try again in a moment.')
+      setStep('error')
+      return
+    }
     try {
       setStep('confirming')
       const bucketArg = isCategorical ? BUCKET_INDEX[selectedBucket] : (betSide === 'yes' ? 1 : 0)
@@ -97,8 +102,15 @@ export function BetWidget({ market, buckets, expired, onSuccess, forceSide, acti
       contractBetIdRef.current = betId as string
       placeBet(request)
     } catch (e: any) {
-      setErrorMsg(e.shortMessage || e.message || 'Transaction failed')
-      setStep('error')
+      const msg: string = e.shortMessage || e.message || ''
+      if (msg.toLowerCase().includes('allowance') || msg.toLowerCase().includes('transfer amount')) {
+        // Stale allowance read — force approval then retry
+        setStep('approve')
+        approve({ address: USDC_ADDRESS, abi: ERC20_ABI, functionName: 'approve', args: [VAULT_ADDRESS, maxUint256] })
+      } else {
+        setErrorMsg(msg || 'Transaction failed')
+        setStep('error')
+      }
     }
   }
 
