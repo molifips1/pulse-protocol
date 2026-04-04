@@ -120,13 +120,13 @@ export function BetWidget({ market, buckets, expired, onSuccess, forceSide, acti
     })
   }
 
-  const handleBet = async () => {
+  const handleBet = () => {
     if (!isConnected) { openConnectModal?.(); return }
     if (!amountRaw) return
     setErrorMsg('')
-    // Always fetch fresh allowance from chain before deciding
-    const { data: freshAllowance } = await refetchAllowance()
-    const hasAllowance = freshAllowance !== undefined && (freshAllowance as bigint) >= amountRaw
+    // Always approve first — if already approved on-chain, MetaMask will still confirm
+    // but the gas will be minimal. This avoids async breaking the user gesture context.
+    const hasAllowance = allowance !== undefined && (allowance as bigint) >= amountRaw
     if (!hasAllowance) {
       setStep('approve')
       approve({ address: USDC_ADDRESS, abi: ERC20_ABI, functionName: 'approve', args: [VAULT_ADDRESS, maxUint256] })
