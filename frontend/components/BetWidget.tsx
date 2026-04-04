@@ -108,6 +108,7 @@ export function BetWidget({ market, buckets, expired, onSuccess, forceSide, acti
       abi: VAULT_ABI,
       functionName: 'placeBet',
       args: [market.contract_market_id as `0x${string}`, bucketArg, amountRaw],
+      gas: 300000n,
     })
   }
 
