@@ -126,6 +126,28 @@ export async function POST(req: NextRequest) {
     }
 
     created.push(channel)
+
+    // Register market on-chain via oracle
+    if (ORACLE_URL) {
+      try {
+        const streamKey = streamRow?.id ? channel : null
+        await fetch(`${ORACLE_URL}/webhook/create-categorical-market`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-pulse-secret': process.env.WEBHOOK_SECRET || '',
+          },
+          body: JSON.stringify({
+            supabaseMarketId: market.id,
+            streamId: channel,
+            bettingWindowSeconds: 3000,  // 50 min = 3000 sec (lock_time window)
+          }),
+        })
+      } catch (oracleErr: any) {
+        console.error('[create-viewer-markets] oracle on-chain create failed:', oracleErr.message)
+        // Market is in Supabase but not on-chain — oracle will retry on next creation cycle
+      }
+    }
   }
 
   return NextResponse.json({ created, skipped })

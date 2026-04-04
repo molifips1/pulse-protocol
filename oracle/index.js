@@ -396,6 +396,10 @@ async function resolveMarket(market) {
   // Sign and settle on-chain using existing vault ABI:
   // resolveMarket(bytes32 marketId, uint8 outcome, bytes signature)
   const contractMarketId = market.contract_market_id;
+  if (!contractMarketId) {
+    console.error(`[ORACLE] market ${market.id} has no contract_market_id — skipping resolve`);
+    return;
+  }
   const signature = await signResolution(contractMarketId, bucketIndex);
 
   let settleTx = null;
@@ -465,6 +469,41 @@ async function resolveAllDue() {
 }
 
 setInterval(resolveAllDue, 60 * 1000);
+
+// ─── Create categorical market on-chain ───────────────────────────────────────
+
+app.post('/webhook/create-categorical-market', async (req, res) => {
+  if (!verifyWebhookSecret(req)) return res.status(401).json({ error: 'Unauthorised' });
+
+  const { supabaseMarketId, streamId, bettingWindowSeconds = 3000 } = req.body;
+  if (!supabaseMarketId || !streamId) {
+    return res.status(400).json({ error: 'Missing supabaseMarketId or streamId' });
+  }
+
+  const timestamp = Date.now();
+  const contractMarketId = ethers.keccak256(
+    ethers.toUtf8Bytes(`${streamId}:categorical:${timestamp}`)
+  );
+
+  try {
+    const tx = await vault.createMarket(
+      contractMarketId,
+      ethers.ZeroAddress,
+      bettingWindowSeconds
+    );
+    const receipt = await tx.wait();
+
+    await supabase.from('markets')
+      .update({ contract_market_id: contractMarketId })
+      .eq('id', supabaseMarketId);
+
+    console.log(`[ORACLE] Categorical market created on-chain: ${supabaseMarketId} | tx: ${receipt.hash}`);
+    res.json({ success: true, contractMarketId, tx: receipt.hash });
+  } catch (err) {
+    console.error('[ORACLE] create-categorical-market failed:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 app.listen(PORT, () => {
   console.log(`[ORACLE] Pulse Oracle running on :${PORT}`);

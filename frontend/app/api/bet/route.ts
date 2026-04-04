@@ -84,20 +84,12 @@ export async function POST(req: NextRequest) {
   // Update pool totals
   if (market.market_type === 'categorical' && bucketId) {
     // Categorical: update market_buckets.pool_usdc for this bucket
-    const { data: bucket, error: bucketErr } = await supabase
-      .from('market_buckets')
-      .select('pool_usdc')
-      .eq('market_id', marketId)
-      .eq('bucket_id', bucketId)
-      .single()
-
-    if (bucketErr) return NextResponse.json({ error: bucketErr.message }, { status: 500 })
-
-    await supabase
-      .from('market_buckets')
-      .update({ pool_usdc: (bucket?.pool_usdc || 0) + amountUsdc })
-      .eq('market_id', marketId)
-      .eq('bucket_id', bucketId)
+    const { error: rpcErr } = await supabase.rpc('increment_bucket_pool', {
+      p_market_id: marketId,
+      p_bucket_id: bucketId,
+      p_amount:    amountUsdc,
+    })
+    if (rpcErr) return NextResponse.json({ error: rpcErr.message }, { status: 500 })
   } else {
     // Binary: existing logic unchanged
     const poolUpdate = side === 'yes'
