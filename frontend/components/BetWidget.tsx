@@ -1,7 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
-import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract, useConfig } from 'wagmi'
-import { simulateContract } from '@wagmi/core'
+import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from 'wagmi'
 import { parseUnits, maxUint256 } from 'viem'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { VAULT_ADDRESS, USDC_ADDRESS, VAULT_ABI, ERC20_ABI } from '../lib/wagmi'
@@ -25,8 +24,6 @@ type BetStep = 'input' | 'approve' | 'confirming' | 'done' | 'error'
 export function BetWidget({ market, buckets, expired, onSuccess, forceSide, activeBucket: activeBucketProp }: Props) {
   const { address, isConnected } = useAccount()
   const { openConnectModal } = useConnectModal()
-  const config = useConfig()
-
   const isCategorical = market?.market_type === 'categorical'
   const [betSide, setBetSide] = useState<'yes' | 'no'>(forceSide ?? 'yes')
   const [selectedBucket, setSelectedBucket] = useState<string>(activeBucketProp ?? 'A')
@@ -42,7 +39,6 @@ export function BetWidget({ market, buckets, expired, onSuccess, forceSide, acti
   const [step, setStep] = useState<BetStep>('input')
   const [errorMsg, setErrorMsg] = useState('')
   const contractBetIdRef = useRef<string | null>(null)
-  const justApprovedRef = useRef(false)
 
   const amountUsdc = parseFloat(amount) || 0
   const amountRaw = amount ? parseUnits(amount, 6) : 0n
@@ -72,52 +68,47 @@ export function BetWidget({ market, buckets, expired, onSuccess, forceSide, acti
   const { isSuccess: approveConfirmed } = useWaitForTransactionReceipt({ hash: approveTxHash })
 
   // Place bet
-  const { writeContract: placeBet, data: betTxHash } = useWriteContract()
-  const { isSuccess: betConfirmed } = useWaitForTransactionReceipt({ hash: betTxHash })
+  const { writeContract: placeBet, data: betTxHash, error: betError } = useWriteContract()
+  const { isSuccess: betConfirmed, isError: betReceiptError } = useWaitForTransactionReceipt({ hash: betTxHash })
 
   useEffect(() => {
-    if (approveConfirmed) {
-      justApprovedRef.current = true
-      refetchAllowance()
-      placeBetNow()
+    if (betError) {
+      const msg: string = (betError as any).shortMessage || betError.message || 'Transaction failed'
+      setErrorMsg(msg)
+      setStep('error')
     }
+  }, [betError])
+
+  useEffect(() => {
+    if (betReceiptError) {
+      setErrorMsg('Transaction reverted on-chain')
+      setStep('error')
+    }
+  }, [betReceiptError])
+
+  useEffect(() => {
+    if (approveConfirmed) placeBetNow()
   }, [approveConfirmed])
 
   useEffect(() => {
     if (betConfirmed && betTxHash) saveBet(betTxHash)
   }, [betConfirmed, betTxHash])
 
-  const placeBetNow = async () => {
+  const placeBetNow = () => {
     if (!market || !address || !amountRaw) return
     if (!market.contract_market_id) {
       setErrorMsg('Market not yet registered on-chain. Please try again in a moment.')
       setStep('error')
       return
     }
-    try {
-      setStep('confirming')
-      const bucketArg = isCategorical ? BUCKET_INDEX[selectedBucket] : (betSide === 'yes' ? 1 : 0)
-      const { result: betId, request } = await simulateContract(config, {
-        address: VAULT_ADDRESS,
-        abi: VAULT_ABI,
-        functionName: 'placeBet',
-        args: [market.contract_market_id as `0x${string}`, bucketArg, amountRaw],
-        account: address,
-      })
-      contractBetIdRef.current = betId as string
-      placeBet(request)
-    } catch (e: any) {
-      const msg: string = e.shortMessage || e.message || ''
-      if (!justApprovedRef.current && (msg.toLowerCase().includes('allowance') || msg.toLowerCase().includes('transfer amount'))) {
-        // Stale allowance read — force approval then retry
-        setStep('approve')
-        approve({ address: USDC_ADDRESS, abi: ERC20_ABI, functionName: 'approve', args: [VAULT_ADDRESS, maxUint256] })
-      } else {
-        justApprovedRef.current = false
-        setErrorMsg(msg || 'Transaction failed')
-        setStep('error')
-      }
-    }
+    setStep('confirming')
+    const bucketArg = isCategorical ? BUCKET_INDEX[selectedBucket] : (betSide === 'yes' ? 1 : 0)
+    placeBet({
+      address: VAULT_ADDRESS,
+      abi: VAULT_ABI,
+      functionName: 'placeBet',
+      args: [market.contract_market_id as `0x${string}`, bucketArg, amountRaw],
+    })
   }
 
   const handleBet = async () => {
