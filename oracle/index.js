@@ -514,6 +514,7 @@ async function checkChannelV1(channel) {
 
 async function syncLiveStreamers() {
   const liveChannels = [];
+  let kickApiResponded = false;
 
   // Try v2 batch first
   let v2ok = false;
@@ -527,6 +528,7 @@ async function syncLiveStreamers() {
         break;
       }
       v2ok = true;
+      kickApiResponded = true;
       const raw = await res.json();
       const items = Array.isArray(raw) ? raw : (raw.data ?? []);
       for (const ch of items) {
@@ -552,15 +554,20 @@ async function syncLiveStreamers() {
     console.log(`[ORACLE] Falling back to v1 API for ${TRACKED_STREAMERS.length} channels`);
     for (const channel of TRACKED_STREAMERS) {
       const result = await checkChannelV1(channel);
+      if (result !== null) kickApiResponded = true;
       if (result) liveChannels.push(result);
       await new Promise(r => setTimeout(r, 500));
     }
   }
 
-  // Mark all tracked streams as not live, then upsert live ones
-  await supabase.from('streams')
-    .update({ is_live: false })
-    .in('stream_key', TRACKED_STREAMERS);
+  // Only wipe is_live if Kick API responded (don't wipe manually-set live streamers on API failure)
+  if (kickApiResponded) {
+    await supabase.from('streams')
+      .update({ is_live: false })
+      .in('stream_key', TRACKED_STREAMERS);
+  } else {
+    console.log('[ORACLE] Kick API unreachable — preserving existing is_live values');
+  }
 
   for (const s of liveChannels) {
     await supabase.from('streams').upsert({
