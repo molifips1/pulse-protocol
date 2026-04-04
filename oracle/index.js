@@ -468,6 +468,102 @@ async function resolveAllDue() {
 
 setInterval(resolveAllDue, 60 * 1000);
 
+// ─── Live streamer sync ───────────────────────────────────────────────────────
+// Polls Kick for the hardcoded streamer list, updates streams table in Supabase,
+// and triggers create-viewer-markets for any newly-live streamers.
+
+const TRACKED_STREAMERS = [
+  'trainwreckstv', 'roshtein', 'classybeef', 'xposed', 'mellstroy987',
+  'sweetflips', 'cheesur', 'syztmz', 'vysotzky', 'elzeein', 'taour',
+  'plinkoplayerca', 'glowis888', 'sloxol', 'dajmaxdajmax',
+  'ladyluckslots', 'mascoobs', 'cousik', 'tck', 'shurzggg', 'haddzy', 'snikwins', 'gtasty',
+  'rakkispider', 'gamegladiatorgg', 'baldybronson',
+  'hunterowner', 'lvsteppers', 'splyfe_sv', 'umbrab0i', 'real_bazzi', '666dope', 'stripnclub',
+  'zeroedg3', 'torontovvs', 'dzhordik', 'strikeeth', 'art_depo', 'scurrows', 'kyrexx21', 'k3ltz',
+  'viktoria_sun', 'robertolovely', 'rombears', 'zpaic0', 'renzrzkzbhsfw', 'jo1nder', 'moratiar',
+  'skinnyoungster', 'sparta4elo', 'hutonis4', 'striker6x6', 'opmbaby_', 'tobbianoq', 'playermaketv',
+  'disthydbeast', 'slowl33', 'moneyneedoff', 'voryndor', 'ketlerrr52', 'misterjack1995', 'goert08', 'hoodden',
+  'hstikkytokky', 'cuffem', 'shnaggyhose', 'danludan2311', 'artemgraph', 'thedoctor', 'generalqw77',
+];
+
+const FRONTEND_URL = process.env.FRONTEND_URL || '';
+
+async function syncLiveStreamers() {
+  const liveChannels = [];
+
+  // Batch check in groups of 25
+  for (let i = 0; i < TRACKED_STREAMERS.length; i += 25) {
+    const batch = TRACKED_STREAMERS.slice(i, i + 25);
+    const query = batch.map(c => `channels[]=${encodeURIComponent(c)}`).join('&');
+    try {
+      const res = await fetch(`https://kick.com/api/v2/channels?${query}`, {
+        headers: { 'Referer': 'https://kick.com', 'Origin': 'https://kick.com' }
+      });
+      if (!res.ok) {
+        console.warn(`[ORACLE] Kick batch API ${res.status} for batch ${i}`);
+        continue;
+      }
+      const raw = await res.json();
+      const items = Array.isArray(raw) ? raw : (raw.data ?? []);
+      for (const ch of items) {
+        const stream = ch.current_livestream || ch.livestream;
+        const isLive = ch.is_live || !!stream;
+        if (isLive && stream) {
+          liveChannels.push({
+            channel: ch.slug,
+            viewers: ch.viewer_count || stream.viewer_count || 0,
+            category: stream.categories?.[0]?.slug || 'irl',
+            title: stream.session_title || 'Live Stream',
+          });
+        }
+      }
+    } catch (err) {
+      console.error(`[ORACLE] syncLiveStreamers batch error:`, err.message);
+    }
+    if (i + 25 < TRACKED_STREAMERS.length) await new Promise(r => setTimeout(r, 1500));
+  }
+
+  // Mark all tracked streams as not live, then upsert live ones
+  await supabase.from('streams')
+    .update({ is_live: false })
+    .in('stream_key', TRACKED_STREAMERS);
+
+  for (const s of liveChannels) {
+    await supabase.from('streams').upsert({
+      platform: 'kick',
+      stream_key: s.channel,
+      is_live: true,
+      viewer_count: s.viewers,
+      game_category: s.category,
+      game_title: s.title,
+      started_at: new Date().toISOString(),
+    }, { onConflict: 'stream_key' });
+  }
+
+  liveStreamersCache = liveChannels.map(s => ({ channel: s.channel, viewers: s.viewers }));
+  console.log(`[ORACLE] Live streamers: ${liveChannels.length} — ${liveChannels.map(s => s.channel).join(', ') || 'none'}`);
+
+  // Trigger market creation if there are live streamers and a frontend URL is configured
+  if (liveChannels.length > 0 && FRONTEND_URL && WEBHOOK_SECRET) {
+    try {
+      const r = await fetch(`${FRONTEND_URL}/api/admin/create-viewer-markets`, {
+        method: 'POST',
+        headers: { 'x-pulse-secret': WEBHOOK_SECRET },
+      });
+      const body = await r.json();
+      if (body.created?.length > 0) {
+        console.log(`[ORACLE] Markets created: ${body.created.join(', ')}`);
+      }
+    } catch (err) {
+      console.error('[ORACLE] create-viewer-markets trigger failed:', err.message);
+    }
+  }
+}
+
+setInterval(syncLiveStreamers, 60 * 1000);
+// Run immediately on start
+syncLiveStreamers().catch(err => console.error('[ORACLE] initial syncLiveStreamers error:', err.message));
+
 // ─── Create categorical market on-chain ───────────────────────────────────────
 
 app.post('/webhook/create-categorical-market', async (req, res) => {
