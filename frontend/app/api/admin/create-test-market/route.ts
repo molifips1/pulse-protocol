@@ -8,11 +8,6 @@ const supabase = createClient(
 )
 
 export async function POST(req: NextRequest) {
-  const secret = req.headers.get('x-pulse-secret')
-  if (secret !== process.env.WEBHOOK_SECRET) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
   const { channel = 'roshtein', windowMinutes = 10 } = await req.json().catch(() => ({}))
   const now = Date.now()
   const resolveAt  = new Date(now + windowMinutes * 60 * 1000).toISOString()
