@@ -749,17 +749,58 @@ app.post('/webhook/create-categorical-market', async (req, res) => {
   }
 });
 
-// ─── Dev: instantly create a market for a channel (no auth, temp) ─────────────
+// ─── Dev: force-create a market for a channel (no auth, ignores existing) ──────
 app.post('/dev/create-market', async (req, res) => {
   const { channel = 'roshtein' } = req.body;
+  const displayChannel = channel.charAt(0).toUpperCase() + channel.slice(1);
+
+  // Check existing open markets first (diagnostic)
+  const { data: existing } = await supabase.from('markets')
+    .select('id, status, resolve_time, contract_market_id')
+    .eq('market_type', 'categorical')
+    .ilike('title', `%${displayChannel}%Peak Viewership%`)
+    .order('created_at', { ascending: false })
+    .limit(5);
+
+  const now = Date.now();
+  const resolveAt = new Date(now + 60 * 60 * 1000).toISOString();
+  const lockAt    = new Date(now + 50 * 60 * 1000).toISOString();
+  const voidAt    = new Date(now + 90 * 60 * 1000).toISOString();
+
+  const { data: streamRow } = await supabase.from('streams').select('id, streamer_id').ilike('stream_key', channel).maybeSingle();
+
+  const { data: market, error: marketErr } = await supabase.from('markets').insert({
+    title:          `What will ${displayChannel}'s Peak Viewership be?`,
+    status:         'open',
+    market_type:    'categorical',
+    event_type:     'peak_viewership',
+    category:       'irl',
+    stream_id:      streamRow?.id ?? null,
+    streamer_id:    streamRow?.streamer_id ?? null,
+    opens_at:       new Date(now).toISOString(),
+    closes_at:      lockAt,
+    lock_time:      lockAt,
+    resolve_time:   resolveAt,
+    auto_void_at:   voidAt,
+    total_yes_usdc: 0,
+    total_no_usdc:  0,
+    rake_rate:      0.0075,
+  }).select('id').single();
+
+  if (marketErr) return res.status(500).json({ error: marketErr.message, existing });
+
+  await supabase.from('market_buckets').insert(
+    FIXED_BUCKETS.map(b => ({ market_id: market.id, bucket_id: b.bucket_id, label: b.label, lo: b.lo, hi: b.hi, pool_usdc: 0, seed_usdc: 25 }))
+  );
+
+  const contractMarketId = ethers.keccak256(ethers.toUtf8Bytes(`${channel}:categorical:${Date.now()}`));
   try {
-    await maybeCreateViewerMarket(channel);
-    const { data } = await supabase.from('markets').select('id, contract_market_id, resolve_time, lock_time')
-      .eq('status', 'open').eq('market_type', 'categorical').ilike('title', `%${channel.charAt(0).toUpperCase() + channel.slice(1)}%Peak Viewership%`)
-      .order('created_at', { ascending: false }).limit(1).single();
-    res.json({ success: true, market: data });
+    const tx = await vault.createMarket(contractMarketId, ethers.ZeroAddress, 3000);
+    const receipt = await tx.wait();
+    await supabase.from('markets').update({ contract_market_id: contractMarketId }).eq('id', market.id);
+    res.json({ success: true, marketId: market.id, contractMarketId, resolveAt, lockAt, existing });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.json({ success: 'partial', marketId: market.id, chainError: err.message, existing });
   }
 });
 
