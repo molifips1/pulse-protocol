@@ -15,10 +15,10 @@ export async function GET(req: NextRequest) {
 
   const [activityRes, myBetsRes, allBetsRes] = await Promise.all([
     supabase.from('bets').select('*').eq('market_id', marketId)
-      .order('created_at', { ascending: false }).limit(25),
+      .order('placed_at', { ascending: false }).limit(25),
     wallet
       ? supabase.from('bets').select('*').eq('market_id', marketId)
-          .eq('wallet_address', wallet.toLowerCase()).order('created_at', { ascending: false })
+          .eq('wallet_address', wallet.toLowerCase()).order('placed_at', { ascending: false })
       : Promise.resolve({ data: null, error: null }),
     supabase.from('bets').select('wallet_address, amount_usdc').eq('market_id', marketId),
   ])
