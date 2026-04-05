@@ -257,7 +257,23 @@ setInterval(async () => {
 
 // ─── Viewer snapshot buffer ────────────────────────────────────────────────────
 // Key: market UUID → array of { ts: epoch ms, viewers: number }
+// In-memory map is the working set; Supabase viewer_snapshots is the durable store.
 const viewerSnapshots = new Map();
+
+// Load existing snapshots from Supabase on startup so resolution survives restarts
+async function loadSnapshots() {
+  const { data, error } = await supabase
+    .from('viewer_snapshots')
+    .select('market_id, ts, viewers')
+    .order('ts', { ascending: true });
+  if (error) { console.error('[ORACLE] loadSnapshots error:', error.message); return; }
+  for (const row of (data || [])) {
+    const snaps = viewerSnapshots.get(row.market_id) || [];
+    snaps.push({ ts: row.ts, viewers: row.viewers });
+    viewerSnapshots.set(row.market_id, snaps);
+  }
+  console.log(`[ORACLE] Loaded ${data?.length || 0} viewer snapshots from DB`);
+}
 
 async function pollViewers() {
   const { data: markets, error } = await supabase
@@ -280,10 +296,14 @@ async function pollViewers() {
       if (!res.ok) continue;
       const data = await res.json();
       const viewers = data?.livestream?.viewer_count ?? 0;
+      const ts = Date.now();
 
       const snaps = viewerSnapshots.get(market.id) || [];
-      snaps.push({ ts: Date.now(), viewers });
+      snaps.push({ ts, viewers });
       viewerSnapshots.set(market.id, snaps);
+
+      // Persist to Supabase so snapshots survive oracle restarts
+      await supabase.from('viewer_snapshots').insert({ market_id: market.id, ts, viewers });
 
       console.log(`[ORACLE] pollViewers: ${channel} → ${viewers} viewers`);
     } catch (err) {
@@ -293,8 +313,10 @@ async function pollViewers() {
 }
 
 setInterval(pollViewers, 60 * 1000);
-// Kick off immediately on start so the first snapshot isn't delayed 60s
-pollViewers().catch(err => console.error('[ORACLE] initial pollViewers error:', err.message));
+// Load persisted snapshots first, then kick off polling immediately
+loadSnapshots()
+  .then(() => pollViewers())
+  .catch(err => console.error('[ORACLE] initial pollViewers error:', err.message));
 
 // ─── Lock categorical markets 10 min before resolve_time ──────────────────────
 
@@ -383,6 +405,7 @@ async function resolveMarket(market) {
     await supabase.from('markets')
       .update({ status: 'voided', updated_at: new Date().toISOString() })
       .eq('id', market.id);
+    await supabase.from('viewer_snapshots').delete().eq('market_id', market.id);
     console.warn(`[ORACLE] Voided market ${market.id} — no viewer snapshots in window`);
     viewerSnapshots.delete(market.id);
     return;
@@ -418,12 +441,11 @@ async function resolveMarket(market) {
 
   // Update market row
   await supabase.from('markets').update({
-    status:          'resolved',
-    outcome:         winningBucket,
-    winning_bucket:  winningBucket,
-    settlement_tx:   settleTx,
-    oracle_signature: signature,
-    updated_at:      new Date().toISOString(),
+    status:         'resolved',
+    outcome:        winningBucket,
+    winning_bucket: winningBucket,
+    settlement_tx:  settleTx,
+    updated_at:     new Date().toISOString(),
   }).eq('id', market.id);
 
   // Mark winning bets
@@ -440,6 +462,8 @@ async function resolveMarket(market) {
     .eq('market_id', market.id)
     .eq('status', 'confirmed');
 
+  // Clean up persisted snapshots
+  await supabase.from('viewer_snapshots').delete().eq('market_id', market.id);
   viewerSnapshots.delete(market.id);
   console.log(`[ORACLE] Resolved market ${market.id} → bucket ${winningBucket} (${medianViewers} viewers)`);
 }
