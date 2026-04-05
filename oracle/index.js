@@ -822,6 +822,11 @@ app.post('/dev/create-market', async (req, res) => {
   }
 });
 
+// ─── Dev: server clock diagnostic ────────────────────────────────────────────
+app.get('/dev/time', (_req, res) => {
+  res.json({ serverTime: new Date().toISOString(), ts: Date.now() });
+});
+
 // ─── Mint MockUSDC (dev/test only) ────────────────────────────────────────────
 app.post('/webhook/mint-usdc', async (req, res) => {
   if (!verifyWebhookSecret(req)) return res.status(401).json({ error: 'Unauthorised' });
