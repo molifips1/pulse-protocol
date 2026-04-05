@@ -629,29 +629,6 @@ setInterval(syncLiveStreamers, 60 * 1000);
 // Run immediately on start
 syncLiveStreamers().catch(err => console.error('[ORACLE] initial syncLiveStreamers error:', err.message));
 
-// ─── Dev: register any unregistered categorical market on-chain (no auth) ──────
-
-app.post('/dev/register-market', async (req, res) => {
-  const { supabaseMarketId, streamId = 'roshtein', bettingWindowSeconds = 1080 } = req.body;
-  if (!supabaseMarketId) return res.status(400).json({ error: 'Missing supabaseMarketId' });
-
-  const timestamp = Date.now();
-  const contractMarketId = ethers.keccak256(
-    ethers.toUtf8Bytes(`${streamId}:categorical:${timestamp}`)
-  );
-
-  try {
-    const tx = await vault.createMarket(contractMarketId, ethers.ZeroAddress, bettingWindowSeconds);
-    const receipt = await tx.wait();
-    await supabase.from('markets').update({ contract_market_id: contractMarketId }).eq('id', supabaseMarketId);
-    console.log(`[ORACLE] Dev registered market on-chain: ${supabaseMarketId} | tx: ${receipt.hash}`);
-    res.json({ success: true, contractMarketId, tx: receipt.hash });
-  } catch (err) {
-    console.error('[ORACLE] dev/register-market failed:', err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // ─── Create categorical market on-chain ───────────────────────────────────────
 
 app.post('/webhook/create-categorical-market', async (req, res) => {
