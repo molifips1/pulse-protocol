@@ -275,10 +275,17 @@ async function loadSnapshots() {
   console.log(`[ORACLE] Loaded ${data?.length || 0} viewer snapshots from DB`);
 }
 
+// Extract channel slug from market title, e.g. "What will Roshtein's Peak Viewership be?" → "roshtein"
+function channelFromTitle(title) {
+  if (!title) return null;
+  const m = title.match(/What will (\w+)'s Peak Viewership/i);
+  return m ? m[1].toLowerCase() : null;
+}
+
 async function pollViewers() {
   const { data: markets, error } = await supabase
     .from('markets')
-    .select('id, stream_id, streams(stream_key), resolve_time')
+    .select('id, stream_id, title, streams(stream_key), resolve_time')
     .in('status', ['open', 'locked'])
     .eq('market_type', 'categorical');
 
@@ -288,7 +295,7 @@ async function pollViewers() {
   }
 
   for (const market of (markets || [])) {
-    const channel = market.streams?.stream_key;
+    const channel = market.streams?.stream_key || channelFromTitle(market.title);
     if (!channel) continue;
 
     try {
@@ -642,19 +649,30 @@ async function maybeCreateViewerMarket(channel) {
     .eq('market_type', 'categorical')
     .ilike('title', `%${displayChannel}%Peak Viewership%`);
 
-  if ((count ?? 0) > 0) return;
-
-  const now = Date.now();
-  const resolveAt = new Date(now + 60 * 60 * 1000).toISOString();  // +60 min
-  const lockAt    = new Date(now + 50 * 60 * 1000).toISOString();  // +50 min
-  const voidAt    = new Date(now + 90 * 60 * 1000).toISOString();  // +90 min
-
-  // Find stream row
+  // Find stream row (may have just been upserted by syncLiveStreamers)
   const { data: streamRow } = await supabase
     .from('streams')
     .select('id, streamer_id')
     .ilike('stream_key', channel)
     .maybeSingle();
+
+  if ((count ?? 0) > 0) {
+    // Market already exists — if it has no stream_id, patch it now that stream row exists
+    if (streamRow?.id) {
+      await supabase.from('markets')
+        .update({ stream_id: streamRow.id, streamer_id: streamRow.streamer_id ?? null })
+        .eq('status', 'open')
+        .eq('market_type', 'categorical')
+        .ilike('title', `%${displayChannel}%Peak Viewership%`)
+        .is('stream_id', null);
+    }
+    return;
+  }
+
+  const now = Date.now();
+  const resolveAt = new Date(now + 60 * 60 * 1000).toISOString();  // +60 min
+  const lockAt    = new Date(now + 50 * 60 * 1000).toISOString();  // +50 min
+  const voidAt    = new Date(now + 90 * 60 * 1000).toISOString();  // +90 min
 
   const { data: market, error: marketErr } = await supabase
     .from('markets')
