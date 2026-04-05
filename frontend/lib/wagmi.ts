@@ -13,8 +13,8 @@ export const wagmiConfig = getDefaultConfig({
   ssr: true,
 })
 
-export const VAULT_ADDRESS = '0x318b8160ec4eFE094Dfe2505Fa139098156C2c17' as `0x${string}`
-export const USDC_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e' as `0x${string}`
+export const VAULT_ADDRESS = getAddress('0x318b8160ec4efe094dfe2505fa139098156c2c17')
+export const USDC_ADDRESS = getAddress('0x036cbd53842c5426634e7929541ec2318f3dcf7e')
 
 export const VAULT_ABI = [
   {
