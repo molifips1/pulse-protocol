@@ -234,26 +234,8 @@ app.get('/live-streamers', (req, res) => {
   res.json({ streamers: liveStreamersCache });
 });
 
-setInterval(async () => {
-  const { data: expiredMarkets } = await supabase
-    .from('markets')
-    .select('id, contract_market_id')
-    .in('status', ['open', 'locked'])
-    .lt('auto_void_at', new Date().toISOString());
-
-  for (const market of (expiredMarkets || [])) {
-    try {
-      const tx = await vault.voidMarket(market.contract_market_id);
-      await tx.wait();
-      await supabase.from('markets')
-        .update({ status: 'voided', updated_at: new Date().toISOString() })
-        .eq('id', market.id);
-      console.log(`[ORACLE] Auto-voided market: ${market.id}`);
-    } catch (err) {
-      console.error(`[ORACLE] Failed to void ${market.id}:`, err.message);
-    }
-  }
-}, 2 * 60 * 1000);
+// Auto-void disabled during testing — re-enable when betting flow is confirmed working
+// setInterval(async () => { ... }, 2 * 60 * 1000);
 
 // ─── Viewer snapshot buffer ────────────────────────────────────────────────────
 // Key: market UUID → array of { ts: epoch ms, viewers: number }
@@ -497,7 +479,8 @@ async function resolveAllDue() {
   }
 }
 
-setInterval(resolveAllDue, 60 * 1000);
+// resolveAllDue disabled during betting flow testing
+// setInterval(resolveAllDue, 60 * 1000);
 
 // ─── Live streamer sync ───────────────────────────────────────────────────────
 // Polls Kick for the hardcoded streamer list, updates streams table in Supabase,
@@ -781,8 +764,8 @@ app.post('/dev/create-market', async (req, res) => {
     .limit(5);
 
   const now = Date.now();
-  const resolveAt = new Date(now + 60 * 60 * 1000).toISOString();
-  const lockAt    = new Date(now + 50 * 60 * 1000).toISOString();
+  const resolveAt = new Date(now + 24 * 60 * 60 * 1000).toISOString();  // +24h
+  const lockAt    = new Date(now + 23 * 60 * 60 * 1000).toISOString();  // +23h
   const voidAt    = new Date(now + 90 * 60 * 1000).toISOString();
 
   const { data: streamRow } = await supabase.from('streams').select('id, streamer_id').ilike('stream_key', channel).maybeSingle();
