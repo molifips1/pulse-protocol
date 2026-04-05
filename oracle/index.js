@@ -608,20 +608,105 @@ async function syncLiveStreamers() {
   liveStreamersCache = liveChannels.map(s => ({ channel: s.channel, viewers: s.viewers }));
   console.log(`[ORACLE] Live streamers: ${liveChannels.length} — ${liveChannels.map(s => s.channel).join(', ') || 'none'}`);
 
-  // Trigger market creation if there are live streamers and a frontend URL is configured
+  // Create markets directly for each live streamer (no FRONTEND_URL dependency)
+  for (const s of liveChannels) {
+    await maybeCreateViewerMarket(s.channel);
+  }
+
+  // Also trigger frontend if configured (belt-and-suspenders)
   if (liveChannels.length > 0 && FRONTEND_URL && WEBHOOK_SECRET) {
     try {
-      const r = await fetch(`${FRONTEND_URL}/api/admin/create-viewer-markets`, {
+      await fetch(`${FRONTEND_URL}/api/admin/create-viewer-markets`, {
         method: 'POST',
         headers: { 'x-pulse-secret': WEBHOOK_SECRET },
       });
-      const body = await r.json();
-      if (body.created?.length > 0) {
-        console.log(`[ORACLE] Markets created: ${body.created.join(', ')}`);
-      }
-    } catch (err) {
-      console.error('[ORACLE] create-viewer-markets trigger failed:', err.message);
-    }
+    } catch { /* best effort */ }
+  }
+}
+
+const FIXED_BUCKETS = [
+  { bucket_id: 'A', label: '0-5K',    lo: 0,      hi: 4999  },
+  { bucket_id: 'B', label: '5K-10K',  lo: 5000,   hi: 9999  },
+  { bucket_id: 'C', label: '10K-20K', lo: 10000,  hi: 19999 },
+  { bucket_id: 'D', label: '20K+',    lo: 20000,  hi: null  },
+];
+
+async function maybeCreateViewerMarket(channel) {
+  const displayChannel = channel.charAt(0).toUpperCase() + channel.slice(1);
+
+  // Skip if open categorical market already exists for this streamer
+  const { count } = await supabase
+    .from('markets')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'open')
+    .eq('market_type', 'categorical')
+    .ilike('title', `%${displayChannel}%Peak Viewership%`);
+
+  if ((count ?? 0) > 0) return;
+
+  const now = Date.now();
+  const resolveAt = new Date(now + 60 * 60 * 1000).toISOString();  // +60 min
+  const lockAt    = new Date(now + 50 * 60 * 1000).toISOString();  // +50 min
+  const voidAt    = new Date(now + 90 * 60 * 1000).toISOString();  // +90 min
+
+  // Find stream row
+  const { data: streamRow } = await supabase
+    .from('streams')
+    .select('id, streamer_id')
+    .ilike('stream_key', channel)
+    .maybeSingle();
+
+  const { data: market, error: marketErr } = await supabase
+    .from('markets')
+    .insert({
+      title:          `What will ${displayChannel}'s Peak Viewership be?`,
+      status:         'open',
+      market_type:    'categorical',
+      event_type:     'peak_viewership',
+      category:       'irl',
+      stream_id:      streamRow?.id ?? null,
+      streamer_id:    streamRow?.streamer_id ?? null,
+      opens_at:       new Date(now).toISOString(),
+      closes_at:      lockAt,
+      lock_time:      lockAt,
+      resolve_time:   resolveAt,
+      auto_void_at:   voidAt,
+      total_yes_usdc: 0,
+      total_no_usdc:  0,
+      rake_rate:      0.0075,
+    })
+    .select('id')
+    .single();
+
+  if (marketErr) {
+    console.error(`[ORACLE] maybeCreateViewerMarket failed for ${channel}:`, marketErr.message);
+    return;
+  }
+
+  await supabase.from('market_buckets').insert(
+    FIXED_BUCKETS.map(b => ({
+      market_id: market.id,
+      bucket_id: b.bucket_id,
+      label:     b.label,
+      lo:        b.lo,
+      hi:        b.hi,
+      pool_usdc: 0,
+      seed_usdc: 25,
+    }))
+  );
+
+  // Register on-chain
+  const timestamp = Date.now();
+  const contractMarketId = ethers.keccak256(
+    ethers.toUtf8Bytes(`${channel}:categorical:${timestamp}`)
+  );
+  try {
+    const tx = await vault.createMarket(contractMarketId, ethers.ZeroAddress, 3000);
+    const receipt = await tx.wait();
+    await supabase.from('markets').update({ contract_market_id: contractMarketId }).eq('id', market.id);
+    console.log(`[ORACLE] Auto-created market for ${channel}: ${market.id} | tx: ${receipt.hash}`);
+  } catch (chainErr) {
+    console.error(`[ORACLE] On-chain create failed for ${channel}:`, chainErr.message);
   }
 }
 
@@ -660,6 +745,20 @@ app.post('/webhook/create-categorical-market', async (req, res) => {
     res.json({ success: true, contractMarketId, tx: receipt.hash });
   } catch (err) {
     console.error('[ORACLE] create-categorical-market failed:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Dev: instantly create a market for a channel (no auth, temp) ─────────────
+app.post('/dev/create-market', async (req, res) => {
+  const { channel = 'roshtein' } = req.body;
+  try {
+    await maybeCreateViewerMarket(channel);
+    const { data } = await supabase.from('markets').select('id, contract_market_id, resolve_time, lock_time')
+      .eq('status', 'open').eq('market_type', 'categorical').ilike('title', `%${channel.charAt(0).toUpperCase() + channel.slice(1)}%Peak Viewership%`)
+      .order('created_at', { ascending: false }).limit(1).single();
+    res.json({ success: true, market: data });
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
