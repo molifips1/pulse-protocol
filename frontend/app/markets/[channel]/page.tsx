@@ -484,10 +484,15 @@ export default function MarketPage() {
       )
       setMarkets(channelMarkets)
 
-      // Auto-select: prefer first open market, else first
+      // Auto-select: prefer first open market, else keep previous selection
       const firstOpen = channelMarkets.find((m: any) => m.status === 'open')
       setSelectedMarket(prev => {
-        if (prev) return channelMarkets.find((m: any) => m.id === prev.id) || channelMarkets[0] || null
+        if (prev) {
+          const updated = channelMarkets.find((m: any) => m.id === prev.id)
+          // If previous selection is no longer open but an open market exists, switch to it
+          if (updated && updated.status !== 'open' && firstOpen) return firstOpen
+          return updated || firstOpen || channelMarkets[0] || null
+        }
         return firstOpen || channelMarkets[0] || null
       })
       setLoading(false)
