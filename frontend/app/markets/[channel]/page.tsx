@@ -531,8 +531,9 @@ export default function MarketPage() {
   useEffect(() => {
     if (!selectedMarket) return
     const update = () => {
+      if (selectedMarket.status !== 'open') { setExpired(true); setTimeLeft('Ended'); return }
       const closes = new Date(selectedMarket.closes_at)
-      if (isPast(closes)) { setExpired(true); setTimeLeft('Ended') }
+      if (isPast(closes)) { setExpired(false); setTimeLeft('closing soon') }
       else { setExpired(false); setTimeLeft(formatDistanceToNow(closes, { addSuffix: true })) }
     }
     update()

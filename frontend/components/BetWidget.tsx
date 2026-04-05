@@ -24,7 +24,7 @@ type BetStep = 'input' | 'approve' | 'confirming' | 'done' | 'error'
 export function BetWidget({ market, buckets, expired, onSuccess, forceSide, activeBucket: activeBucketProp }: Props) {
   const { address, isConnected } = useAccount()
   const { openConnectModal } = useConnectModal()
-  const isCategorical = market?.market_type === 'categorical'
+  const isCategorical = market?.market_type === 'categorical' || market?.event_type === 'peak_viewership'
   const [betSide, setBetSide] = useState<'yes' | 'no'>(forceSide ?? 'yes')
   const [selectedBucket, setSelectedBucket] = useState<string>(activeBucketProp ?? 'A')
 
