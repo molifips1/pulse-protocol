@@ -822,9 +822,15 @@ app.post('/dev/create-market', async (req, res) => {
   }
 });
 
-// ─── Dev: server clock diagnostic ────────────────────────────────────────────
-app.get('/dev/time', (_req, res) => {
-  res.json({ serverTime: new Date().toISOString(), ts: Date.now() });
+// ─── Dev: server clock + recent market diagnostic ─────────────────────────────
+app.get('/dev/time', async (_req, res) => {
+  const now = new Date();
+  const { data: recent } = await supabase.from('markets')
+    .select('id, title, status, resolve_time, lock_time, auto_void_at, contract_market_id, created_at')
+    .eq('market_type', 'categorical')
+    .order('created_at', { ascending: false })
+    .limit(5);
+  res.json({ serverTime: now.toISOString(), ts: now.getTime(), recent });
 });
 
 // ─── Mint MockUSDC (dev/test only) ────────────────────────────────────────────
