@@ -40,9 +40,6 @@ export function BetWidget({ market, buckets, expired, onSuccess, forceSide, acti
   const [errorMsg, setErrorMsg] = useState('')
   const contractBetIdRef = useRef<string | null>(null)
 
-  // Debug: log addresses so we can verify runtime values
-  if (typeof window !== 'undefined') console.log('[Pulse] USDC_ADDRESS:', USDC_ADDRESS, 'VAULT_ADDRESS:', VAULT_ADDRESS)
-
   const amountUsdc = parseFloat(amount) || 0
   const amountRaw = amount ? parseUnits(amount, 6) : 0n
   const odds = calcOdds(market)
