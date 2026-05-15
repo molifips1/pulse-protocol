@@ -4,7 +4,7 @@ import { http } from 'wagmi'
 
 export const wagmiConfig = getDefaultConfig({
   appName: 'Pulse Protocol',
-  projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID!,
+  projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'pulse-protocol-dev',
   chains: [baseSepolia],
   transports: {
     [baseSepolia.id]: http('https://sepolia.base.org'),

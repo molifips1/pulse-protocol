@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase, type Market } from '../lib/supabase'
 import { StreamerCard } from './StreamerCard'
-import { getStreamerFromTitle, KNOWN_STREAMERS } from '../lib/utils'
+import { buildStreamerMarketModel } from '../lib/marketSimulation'
 
 export function LiveMarketsGrid() {
   const router = useRouter()
@@ -35,36 +35,9 @@ export function LiveMarketsGrid() {
     return () => { supabase.removeChannel(channel); clearInterval(streamPoll) }
   }, [])
 
-  // Build streamer → all markets map
-  const streamerMap = new Map<string, Market[]>()
-  for (const market of markets) {
-    const streamer = (market.streams?.stream_key || getStreamerFromTitle(market.title))?.toLowerCase()
-    if (!streamer) continue
-    if (!streamerMap.has(streamer)) streamerMap.set(streamer, [])
-    streamerMap.get(streamer)!.push(market)
-  }
-
   const liveMap = new Map(liveStreams.map(s => [s.channel.toLowerCase(), s]))
-  const liveSet = new Set(liveStreams.map(s => s.channel.toLowerCase()))
-
-  // Online: currently live streamers (ordered by viewer count)
-  const onlineChannels = liveStreams
-    .slice()
-    .sort((a, b) => b.viewers - a.viewers)
-    .map(s => s.channel.toLowerCase())
-
-  // Offline: all known streamers not currently live, sorted by those with markets first
-  const liveSetLower = new Set(onlineChannels)
-  const offlineChannels: string[] = []
-  const seen = new Set(onlineChannels)
-  // First add known streamers with markets
-  for (const key of streamerMap.keys()) {
-    if (!seen.has(key)) { offlineChannels.push(key); seen.add(key) }
-  }
-  // Then add all other known streamers who are simply offline
-  for (const s of KNOWN_STREAMERS) {
-    if (!seen.has(s)) { offlineChannels.push(s); seen.add(s) }
-  }
+  const { marketsByChannel, onlineChannels, offlineChannels, openMarkets, totalVolume } =
+    buildStreamerMarketModel(markets, liveStreams)
 
   const activeChannels = tab === 'online' ? onlineChannels : offlineChannels
 
@@ -95,20 +68,29 @@ export function LiveMarketsGrid() {
   )
 
   return (
-    <div style={{ padding: '24px 32px' }}>
-      {/* Header + tabs */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
-        <h1 style={{ fontSize: '22px', fontFamily: 'var(--font-display)', fontWeight: 800, color: 'var(--text)', margin: 0 }}>
-          Markets
-        </h1>
-        <div style={{ display: 'flex', gap: '4px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px', padding: '3px' }}>
+    <div className="markets-page">
+      <div className="markets-hero">
+        <div>
+          <div style={{ color: 'var(--live)', fontSize: '10px', fontFamily: 'var(--font-mono)', fontWeight: 800, letterSpacing: '0.14em', marginBottom: '6px' }}>
+            PULSE PROTOCOL
+          </div>
+          <h1 style={{ fontSize: '28px', fontFamily: 'var(--font-display)', fontWeight: 800, color: 'var(--text)', margin: '0 0 8px' }}>
+            Kick Markets
+          </h1>
+          <div className="market-stats">
+            <div><span>{onlineChannels.length}</span><label>Live creators</label></div>
+            <div><span>{openMarkets.length}</span><label>Open markets</label></div>
+            <div><span>${totalVolume.toFixed(0)}</span><label>Volume</label></div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: '4px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px', padding: '3px', alignSelf: 'flex-start' }}>
           {tabBtn('Online', 'online', onlineChannels.length)}
           {tabBtn('Offline', 'offline', offlineChannels.length)}
         </div>
       </div>
 
       {loading ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+        <div className="streamer-grid">
           {[...Array(6)].map((_, i) => <div key={i} className="skel" style={{ height: '280px' }} />)}
         </div>
       ) : activeChannels.length === 0 ? (
@@ -122,16 +104,17 @@ export function LiveMarketsGrid() {
           </p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+        <div className="streamer-grid">
           {activeChannels.map(channel => {
             const live = liveMap.get(channel)
             return (
               <StreamerCard
                 key={channel}
                 channel={channel}
-                markets={streamerMap.get(channel) || []}
+                markets={marketsByChannel.get(channel) || []}
                 isLive={!!live}
                 thumbnail={live?.thumbnail || null}
+                viewers={live?.viewers}
                 onClick={() => router.push(`/markets/${channel}`)}
               />
             )

@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { getServerSupabase } from '@/lib/serverSupabase'
 export const dynamic = 'force-dynamic'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY!
-)
 
 // Fixed 4 buckets — same for every streamer
 const FIXED_BUCKETS = [
@@ -35,6 +30,8 @@ export async function POST(req: NextRequest) {
 }
 
 async function handleRequest(req: NextRequest) {
+  const supabase = getServerSupabase()
+
   // Accept either webhook secret (manual/oracle calls) or Vercel cron auth
   const secret = req.headers.get('x-pulse-secret')
   const cronAuth = req.headers.get('authorization')

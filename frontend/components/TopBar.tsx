@@ -30,7 +30,7 @@ export function TopBar() {
   }
 
   return (
-    <nav style={{
+    <nav className="mobile-topbar" style={{
       background: 'var(--surface)',
       borderBottom: '1px solid var(--border)',
       position: 'sticky', top: 0, zIndex: 50,
@@ -43,9 +43,10 @@ export function TopBar() {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontFamily: 'var(--font-display)', fontWeight: 800, color: 'white', fontSize: '13px',
         }}>P</div>
-        <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '16px', color: 'var(--text)' }}>Pulse</span>
+        <span className="mobile-brand-text" style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '16px', color: 'var(--text)' }}>Pulse</span>
       </Link>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <div className="mobile-nav-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div className="mobile-nav-links" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
         {[{ href: '/', label: 'Markets' }, { href: '/bets', label: 'My Bets' }].map(item => (
           <Link key={item.href} href={item.href} style={{
             textDecoration: 'none', fontSize: '13px', fontWeight: '500',
@@ -54,7 +55,10 @@ export function TopBar() {
             background: path === item.href ? 'var(--surface-2)' : 'transparent',
           }}>{item.label}</Link>
         ))}
-        <ConnectButton showBalance={false} chainStatus="none" accountStatus="avatar" />
+        </div>
+        <div className="mobile-wallet">
+          <ConnectButton showBalance={false} chainStatus="none" accountStatus="avatar" />
+        </div>
       </div>
     </nav>
   )
