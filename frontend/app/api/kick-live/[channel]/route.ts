@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { channel: string } }
+  { params }: { params: Promise<{ channel: string }> }
 ) {
-  const channel = params.channel.toLowerCase()
+  const { channel: rawChannel } = await params
+  const channel = rawChannel.toLowerCase()
   try {
     const res = await fetch(`https://kick.com/api/v1/channels/${channel}`, {
       headers: {
