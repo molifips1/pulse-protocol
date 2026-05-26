@@ -34,6 +34,54 @@ export function calcOdds(market: { total_yes_usdc: number; total_no_usdc: number
   return { totalPool, yesPercent, noPercent, yesOdds, noOdds }
 }
 
+export const MARKET_LOCK_WINDOW_MINUTES = 10
+export const MARKET_LOCK_WINDOW_MS = MARKET_LOCK_WINDOW_MINUTES * 60 * 1000
+
+export function getMarketLockTime(closesAt: string | Date) {
+  const closeMs = new Date(closesAt).getTime()
+  if (!Number.isFinite(closeMs)) return null
+  return new Date(closeMs - MARKET_LOCK_WINDOW_MS)
+}
+
+export function isMarketBettingLocked(
+  closesAt: string | Date,
+  status: string = 'open',
+  now: Date = new Date()
+) {
+  if (status !== 'open') return true
+  const lockAt = getMarketLockTime(closesAt)
+  if (!lockAt) return true
+  return now.getTime() >= lockAt.getTime()
+}
+
+export function getMarketLockState(market: { status?: string; closes_at?: string } | null | undefined, now = Date.now()) {
+  const closesAtMs = market?.closes_at ? new Date(market.closes_at).getTime() : NaN
+  const lockAtMs = Number.isFinite(closesAtMs) ? closesAtMs - MARKET_LOCK_WINDOW_MS : NaN
+  const isOpen = market?.status === 'open'
+  const isLockedByTime = Number.isFinite(lockAtMs) ? now >= lockAtMs : true
+  const isPastClose = Number.isFinite(closesAtMs) ? now >= closesAtMs : true
+
+  return {
+    isOpen,
+    isBettable: isOpen && !isLockedByTime && !isPastClose,
+    isLockedByTime: isOpen && isLockedByTime,
+    closesAtMs,
+    lockAtMs,
+    msToClose: Number.isFinite(closesAtMs) ? Math.max(0, closesAtMs - now) : 0,
+    msToLock: Number.isFinite(lockAtMs) ? Math.max(0, lockAtMs - now) : 0,
+  }
+}
+
+export function formatCompactDuration(ms: number) {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000))
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  if (hours > 0) return `${hours}h ${String(minutes).padStart(2, '0')}m`
+  if (minutes > 0) return `${minutes}m ${String(seconds).padStart(2, '0')}s`
+  return `${seconds}s`
+}
+
 export interface BucketPool {
   bucket_id: 'A' | 'B' | 'C' | 'D'
   pool_usdc: number

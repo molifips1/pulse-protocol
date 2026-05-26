@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 const RESTRICTED_COUNTRIES = new Set(['CN', 'KP', 'IR', 'SY', 'CU'])
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl
 
   if (pathname.startsWith('/_next') || pathname === '/api/geo' || pathname === '/favicon.ico' || pathname === '/restricted') {

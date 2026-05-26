@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { getServerSupabase } from '@/lib/serverSupabase'
 export const dynamic = 'force-dynamic'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY!
-)
+const MARKET_LOCK_WINDOW_MS = 10 * 60 * 1000
 
 export async function POST(req: NextRequest) {
+  const supabase = getServerSupabase()
   const {
     marketId, walletAddress, side, bucketId,
     amountUsdc, oddsAtPlacement, potentialPayout, txHash, contractBetId
@@ -28,7 +26,14 @@ export async function POST(req: NextRequest) {
   if (!market || market.status !== 'open') {
     return NextResponse.json({ error: `Market not open (status: ${market?.status})` }, { status: 400 })
   }
-  if (new Date(market.closes_at) < new Date()) {
+  const closesAtMs = new Date(market.closes_at).getTime()
+  if (!Number.isFinite(closesAtMs)) {
+    return NextResponse.json({ error: 'Invalid market close time' }, { status: 500 })
+  }
+  if (Date.now() >= closesAtMs - MARKET_LOCK_WINDOW_MS) {
+    return NextResponse.json({ error: 'Betting is locked for the final 10 minutes before resolution' }, { status: 400 })
+  }
+  if (closesAtMs < Date.now()) {
     return NextResponse.json({ error: 'Betting window closed' }, { status: 400 })
   }
 

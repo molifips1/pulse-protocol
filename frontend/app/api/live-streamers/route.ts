@@ -1,12 +1,7 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { getServerSupabase } from '@/lib/serverSupabase'
 export const dynamic = 'force-dynamic'
 import { KNOWN_STREAMERS } from '@/lib/utils'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY!
-)
 
 const KICK_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
@@ -88,6 +83,7 @@ export async function GET() {
       }
 
       // Final fallback: read is_live from Supabase streams table
+      const supabase = getServerSupabase()
       const { data: liveRows } = await supabase
         .from('streams')
         .select('stream_key, viewer_count')

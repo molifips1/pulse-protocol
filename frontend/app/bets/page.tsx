@@ -127,7 +127,7 @@ function BetCard({ bet, onClaimed }: { bet: any; onClaimed: () => void }) {
       abi: VAULT_ABI,
       functionName: fn,
       args: [bet.contract_bet_id as `0x${string}`],
-    })
+    } as any)
   }
 
   const market = bet.markets

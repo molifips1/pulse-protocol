@@ -4,7 +4,8 @@ import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadCont
 import { parseUnits, maxUint256 } from 'viem'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { VAULT_ADDRESS, USDC_ADDRESS, VAULT_ABI, ERC20_ABI } from '../lib/wagmi'
-import { calcOdds } from '../lib/utils'
+import { calcOdds, getMarketLockState } from '../lib/utils'
+import { buildBetRecordPayload } from '../lib/marketSimulation'
 
 const BUCKET_LABELS: Record<string, string> = { A: '0–5K', B: '5K–10K', C: '10K–20K', D: '20K+' }
 const BUCKET_INDEX: Record<string, number> = { A: 0, B: 1, C: 2, D: 3 }
@@ -53,6 +54,9 @@ export function BetWidget({ market, buckets, expired, onSuccess, forceSide, acti
 
   const selectedOdds = isCategorical ? bucketOdds : (betSide === 'yes' ? odds.yesOdds : odds.noOdds)
   const potentialPayout = (amountUsdc * selectedOdds).toFixed(2)
+  const lockState = getMarketLockState(market)
+  const isDisabled = expired || !lockState.isBettable
+  const selectedLabel = isCategorical ? `${selectedBucket} (${BUCKET_LABELS[selectedBucket]})` : betSide.toUpperCase()
 
   // Allowance check
   const { data: allowance, refetch: refetchAllowance } = useReadContract({
@@ -117,19 +121,24 @@ export function BetWidget({ market, buckets, expired, onSuccess, forceSide, acti
       functionName: 'placeBet',
       args: [market.contract_market_id as `0x${string}`, bucketArg, amountRaw],
       gas: 300000n,
-    })
+    } as any)
   }
 
   const handleBet = () => {
     if (!isConnected) { openConnectModal?.(); return }
     if (!amountRaw) return
+    if (isDisabled) {
+      setErrorMsg(lockState.isLockedByTime ? 'Betting is locked for the final 10 minutes before resolution.' : 'Market is closed.')
+      setStep('error')
+      return
+    }
     setErrorMsg('')
     // Always approve first — if already approved on-chain, MetaMask will still confirm
     // but the gas will be minimal. This avoids async breaking the user gesture context.
     const hasAllowance = allowance !== undefined && (allowance as bigint) >= amountRaw
     if (!hasAllowance) {
       setStep('approve')
-      approve({ address: USDC_ADDRESS, abi: ERC20_ABI, functionName: 'approve', args: [VAULT_ADDRESS, maxUint256] })
+      approve({ address: USDC_ADDRESS, abi: ERC20_ABI, functionName: 'approve', args: [VAULT_ADDRESS, maxUint256] } as any)
     } else {
       placeBetNow()
     }
@@ -141,17 +150,18 @@ export function BetWidget({ market, buckets, expired, onSuccess, forceSide, acti
       const res = await fetch('/api/bet', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: JSON.stringify(buildBetRecordPayload({
           marketId: market.id,
           walletAddress: address,
-          side: 'yes',
-          bucketId: isCategorical ? selectedBucket : undefined,
+          isCategorical,
+          selectedBucket,
+          betSide,
           amountUsdc,
           oddsAtPlacement: selectedOdds,
           potentialPayout: parseFloat(potentialPayout),
           txHash,
           contractBetId: contractBetIdRef.current,
-        }),
+        })),
       })
       if (!res.ok) {
         const err = await res.json()
@@ -168,7 +178,7 @@ export function BetWidget({ market, buckets, expired, onSuccess, forceSide, acti
         <div style={{ fontSize: '36px', marginBottom: '8px' }}>✅</div>
         <p style={{ color: 'var(--green)', fontWeight: '700', fontSize: '15px', margin: '0 0 4px' }}>Bet Confirmed</p>
         <p style={{ color: 'var(--muted)', fontSize: '12px', fontFamily: 'var(--font-mono)', margin: '0 0 14px' }}>
-          ${amountUsdc.toFixed(2)} on {isCategorical ? `${selectedBucket} (${BUCKET_LABELS[selectedBucket]})` : betSide.toUpperCase()} · up to ${potentialPayout}
+          ${amountUsdc.toFixed(2)} on {selectedLabel} · up to ${potentialPayout}
         </p>
         <a href="/bets" style={{
           display: 'inline-block', padding: '7px 18px', borderRadius: '8px',
@@ -216,9 +226,9 @@ export function BetWidget({ market, buckets, expired, onSuccess, forceSide, acti
             const color = BUCKET_COLORS[i]
             const active = selectedBucket === b
             return (
-              <button key={b} onClick={() => setSelectedBucket(b)} disabled={expired}
+              <button key={b} onClick={() => setSelectedBucket(b)} disabled={isDisabled}
                 style={{
-                  padding: '10px 8px', borderRadius: '8px', cursor: expired ? 'not-allowed' : 'pointer',
+                  padding: '10px 8px', borderRadius: '8px', cursor: isDisabled ? 'not-allowed' : 'pointer',
                   border: `2px solid ${active ? color : 'var(--border)'}`,
                   background: active ? `${color}20` : 'var(--surface-2)',
                   color: active ? color : 'var(--muted)',
@@ -236,9 +246,9 @@ export function BetWidget({ market, buckets, expired, onSuccess, forceSide, acti
         <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
           <button
             onClick={() => setBetSide('yes')}
-            disabled={expired}
+            disabled={isDisabled}
             style={{
-              flex: 1, padding: '10px 0', borderRadius: '8px', cursor: expired ? 'not-allowed' : 'pointer',
+              flex: 1, padding: '10px 0', borderRadius: '8px', cursor: isDisabled ? 'not-allowed' : 'pointer',
               border: betSide === 'yes' ? '2px solid var(--yes)' : '2px solid var(--border)',
               background: betSide === 'yes' ? 'rgba(59,130,246,0.12)' : 'var(--surface-2)',
               color: betSide === 'yes' ? 'var(--yes)' : 'var(--muted)',
@@ -247,9 +257,9 @@ export function BetWidget({ market, buckets, expired, onSuccess, forceSide, acti
           >Yes {odds.yesPercent}¢</button>
           <button
             onClick={() => setBetSide('no')}
-            disabled={expired}
+            disabled={isDisabled}
             style={{
-              flex: 1, padding: '10px 0', borderRadius: '8px', cursor: expired ? 'not-allowed' : 'pointer',
+              flex: 1, padding: '10px 0', borderRadius: '8px', cursor: isDisabled ? 'not-allowed' : 'pointer',
               border: betSide === 'no' ? '2px solid var(--no)' : '2px solid var(--border)',
               background: betSide === 'no' ? 'rgba(239,68,68,0.1)' : 'var(--surface-2)',
               color: betSide === 'no' ? 'var(--no)' : 'var(--muted)',
@@ -276,7 +286,7 @@ export function BetWidget({ market, buckets, expired, onSuccess, forceSide, acti
             onChange={e => setAmount(e.target.value)}
             placeholder="0"
             min="1"
-            disabled={expired}
+            disabled={isDisabled}
             style={{
               width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '8px',
               padding: '12px 12px 12px 28px', color: 'var(--text)', fontSize: '20px', fontWeight: '700',
@@ -289,20 +299,20 @@ export function BetWidget({ market, buckets, expired, onSuccess, forceSide, acti
             <button
               key={v}
               onClick={() => setAmount(String(v))}
-              disabled={expired}
+              disabled={isDisabled}
               style={{
                 flex: 1, padding: '6px 0', background: 'var(--surface-2)', border: '1px solid var(--border)',
-                borderRadius: '6px', color: 'var(--muted)', cursor: expired ? 'not-allowed' : 'pointer',
+                borderRadius: '6px', color: 'var(--muted)', cursor: isDisabled ? 'not-allowed' : 'pointer',
                 fontSize: '11px', fontFamily: 'var(--font-mono)', fontWeight: '600',
               }}
             >+${v}</button>
           ))}
           <button
             onClick={() => setAmount('500')}
-            disabled={expired}
+            disabled={isDisabled}
             style={{
               flex: 1, padding: '6px 0', background: 'var(--surface-2)', border: '1px solid var(--border)',
-              borderRadius: '6px', color: 'var(--muted)', cursor: expired ? 'not-allowed' : 'pointer',
+              borderRadius: '6px', color: 'var(--muted)', cursor: isDisabled ? 'not-allowed' : 'pointer',
               fontSize: '11px', fontFamily: 'var(--font-mono)', fontWeight: '600',
             }}
           >Max</button>
@@ -338,26 +348,26 @@ export function BetWidget({ market, buckets, expired, onSuccess, forceSide, acti
 
       <button
         onClick={handleBet}
-        disabled={expired || (isConnected && !amountUsdc)}
+        disabled={isDisabled || (isConnected && !amountUsdc)}
         style={{
           width: '100%', padding: '12px', borderRadius: '8px', border: 'none',
-          background: expired || (isConnected && !amountUsdc)
+          background: isDisabled || (isConnected && !amountUsdc)
             ? 'var(--surface-2)'
-            : betSide === 'yes' ? 'var(--yes)' : 'var(--no)',
-          color: expired || (isConnected && !amountUsdc) ? 'var(--muted)' : 'white',
+            : isCategorical ? BUCKET_COLORS[BUCKET_INDEX[selectedBucket]] : betSide === 'yes' ? 'var(--yes)' : 'var(--no)',
+          color: isDisabled || (isConnected && !amountUsdc) ? 'var(--muted)' : 'white',
           fontWeight: '700', fontSize: '14px', letterSpacing: '0.04em',
-          cursor: expired || (isConnected && !amountUsdc) ? 'not-allowed' : 'pointer',
+          cursor: isDisabled || (isConnected && !amountUsdc) ? 'not-allowed' : 'pointer',
           transition: 'opacity 0.15s', fontFamily: 'var(--font-mono)',
         }}
       >
-        {expired
-          ? 'Market Closed'
+        {isDisabled
+          ? lockState.isLockedByTime ? '10-Minute Lock Active' : 'Market Closed'
           : !isConnected
           ? 'Connect Wallet'
           : needsApproval
           ? 'Approve & Buy'
           : amountUsdc > 0
-          ? `Buy ${betSide === 'yes' ? 'Yes' : 'No'} — $${amountUsdc.toFixed(2)}`
+          ? `Buy ${isCategorical ? selectedLabel : betSide === 'yes' ? 'Yes' : 'No'} — $${amountUsdc.toFixed(2)}`
           : 'Enter Amount'}
       </button>
     </div>

@@ -6,10 +6,11 @@ interface Props {
   markets: any[]
   isLive: boolean
   thumbnail: string | null
+  viewers?: number
   onClick: () => void
 }
 
-export function StreamerCard({ channel, markets, isLive, thumbnail, onClick }: Props) {
+export function StreamerCard({ channel, markets, isLive, thumbnail, viewers, onClick }: Props) {
   const [imgError, setImgError] = useState(false)
   const firstMarket = markets[0]
   const yes = firstMarket ? Math.round(((firstMarket.total_yes_usdc || 0) / Math.max((firstMarket.total_yes_usdc || 0) + (firstMarket.total_no_usdc || 0), 1)) * 100) : 50
@@ -17,7 +18,15 @@ export function StreamerCard({ channel, markets, isLive, thumbnail, onClick }: P
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onClick()
+        }
+      }}
       style={{
         background: 'var(--surface)',
         border: '1px solid var(--border)',
@@ -73,6 +82,17 @@ export function StreamerCard({ channel, markets, isLive, thumbnail, onClick }: P
           }}>
             <span style={{ color: 'white', fontSize: '10px', fontFamily: 'var(--font-mono)', fontWeight: '600' }}>
               {markets.length} {markets.length === 1 ? 'market' : 'markets'}
+            </span>
+          </div>
+        )}
+        {isLive && typeof viewers === 'number' && (
+          <div style={{
+            position: 'absolute', bottom: '8px', left: '8px',
+            background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)',
+            borderRadius: '5px', padding: '3px 7px',
+          }}>
+            <span style={{ color: 'white', fontSize: '10px', fontFamily: 'var(--font-mono)', fontWeight: '600' }}>
+              {viewers.toLocaleString()} viewers
             </span>
           </div>
         )}

@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { getServerSupabase } from '@/lib/serverSupabase'
 export const dynamic = 'force-dynamic'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY!
-)
-
 export async function GET(req: NextRequest) {
+  const supabase = getServerSupabase()
   const { searchParams } = new URL(req.url)
   const category = searchParams.get('category')
   const status = searchParams.get('status') || 'open'

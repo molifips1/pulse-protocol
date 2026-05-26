@@ -2,10 +2,10 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { formatDistanceToNow, isPast } from 'date-fns'
+import { formatDistanceToNow } from 'date-fns'
 import { useAccount } from 'wagmi'
 import { supabase } from '../../../lib/supabase'
-import { calcOdds, getStreamerFromTitle } from '../../../lib/utils'
+import { calcOdds, formatCompactDuration, getMarketLockState, getStreamerFromTitle, MARKET_LOCK_WINDOW_MS } from '../../../lib/utils'
 import { BetWidget } from '../../../components/BetWidget'
 
 // ─── tiny helpers ────────────────────────────────────────────────────────────
@@ -165,7 +165,7 @@ function GroupedEventCard({
   }, 0)
 
   return (
-    <div style={{
+    <div className="market-card" style={{
       background: 'var(--surface)', border: '1px solid var(--border)',
       borderRadius: '14px', overflow: 'hidden',
     }}>
@@ -192,7 +192,7 @@ function GroupedEventCard({
       </div>
 
       {/* column headers */}
-      <div style={{
+      <div className="market-row market-row-four" style={{
         display: 'grid', gridTemplateColumns: '1fr 70px 110px 110px',
         padding: '7px 18px', background: 'var(--surface-2)',
         borderBottom: '1px solid var(--border)',
@@ -210,6 +210,7 @@ function GroupedEventCard({
         return (
           <div
             key={m.id}
+            className="market-row market-row-four"
             style={{
               display: 'grid', gridTemplateColumns: '1fr 70px 110px 110px',
               alignItems: 'center',
@@ -339,7 +340,7 @@ function CountdownTimer({ closesAt }: { closesAt: string }) {
     }
     update(); const id = setInterval(update, 1000); return () => clearInterval(id)
   }, [closesAt])
-  if (t.ended) return <span style={{ color: 'var(--no)', fontSize: '11px', fontFamily: 'var(--font-mono)', fontWeight: '700' }}>CLOSED</span>
+  if (t.ended) return <span style={{ color: 'var(--no)', fontSize: '11px', fontFamily: 'var(--font-mono)', fontWeight: '700' }}>LOCKED</span>
   return (
     <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
       {[{ v: t.hrs, l: 'HRS' }, { v: t.mins, l: 'MINS' }, { v: t.secs, l: 'SECS' }].map(({ v, l }) => (
@@ -364,13 +365,13 @@ function CategoricalMarketView({ market, buckets, activeBucket, onSelectBucket, 
   const totalVol = buckets.reduce((s, b) => s + (b.pool_usdc || 0), 0)
 
   return (
-    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden' }}>
+    <div className="market-card" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden' }}>
       {/* Header */}
       <div style={{ padding: '18px 20px 14px', borderBottom: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', marginBottom: '12px' }}>
           <div style={{ width: '38px', height: '38px', borderRadius: '9px', background: 'linear-gradient(135deg,rgba(59,130,246,0.2),rgba(99,102,241,0.2))', border: '1px solid rgba(59,130,246,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', flexShrink: 0 }}>👁</div>
           <h2 style={{ color: 'var(--text)', fontSize: '16px', fontWeight: '700', margin: 0, flex: 1, lineHeight: 1.4 }}>{market.title}</h2>
-          <CountdownTimer closesAt={market.closes_at} />
+          <CountdownTimer closesAt={new Date(new Date(market.closes_at).getTime() - MARKET_LOCK_WINDOW_MS).toISOString()} />
         </div>
         {/* Legend */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
@@ -406,7 +407,7 @@ function CategoricalMarketView({ market, buckets, activeBucket, onSelectBucket, 
       </div>
 
       {/* Column headers */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 130px', padding: '7px 20px', borderBottom: '1px solid var(--border)' }}>
+      <div className="market-row market-row-three" style={{ display: 'grid', gridTemplateColumns: '1fr 80px 130px', padding: '7px 20px', borderBottom: '1px solid var(--border)' }}>
         {['Outcome', 'Chance', ''].map((h, i) => (
           <span key={i} style={{ color: 'var(--dim)', fontSize: '10px', fontFamily: 'var(--font-mono)', fontWeight: '600', letterSpacing: '0.08em', textAlign: i === 1 ? 'center' : 'left' }}>{h}</span>
         ))}
@@ -419,7 +420,7 @@ function CategoricalMarketView({ market, buckets, activeBucket, onSelectBucket, 
         const active = activeBucket === b.bucket_id
         const color = CAT_COLORS[b.bucket_id]
         return (
-          <div key={b.bucket_id} style={{ display: 'grid', gridTemplateColumns: '1fr 80px 130px', alignItems: 'center', padding: '13px 20px', borderBottom: i < buckets.length - 1 ? '1px solid var(--border)' : 'none', background: active ? `${color}08` : 'transparent', transition: 'background 0.12s' }}>
+          <div key={b.bucket_id} className="market-row market-row-three" style={{ display: 'grid', gridTemplateColumns: '1fr 80px 130px', alignItems: 'center', padding: '13px 20px', borderBottom: i < buckets.length - 1 ? '1px solid var(--border)' : 'none', background: active ? `${color}08` : 'transparent', transition: 'background 0.12s' }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: color, flexShrink: 0 }} />
@@ -536,15 +537,20 @@ export default function MarketPage() {
   useEffect(() => {
     if (!selectedMarket) return
     const update = () => {
+      const lock = getMarketLockState(selectedMarket)
       if (selectedMarket.status !== 'open') { setExpired(true); setTimeLeft('Ended'); return }
-      const closes = new Date(selectedMarket.closes_at)
-      if (isPast(closes)) { setExpired(false); setTimeLeft('closing soon') }
-      else { setExpired(false); setTimeLeft(formatDistanceToNow(closes, { addSuffix: true })) }
+      if (lock.isLockedByTime) {
+        setExpired(true)
+        setTimeLeft(`Locked · resolves in ${formatCompactDuration(lock.msToClose)}`)
+        return
+      }
+      setExpired(false)
+      setTimeLeft(`Locks in ${formatCompactDuration(lock.msToLock)}`)
     }
     update()
     const t = setInterval(update, 1000)
     return () => clearInterval(t)
-  }, [selectedMarket?.closes_at])
+  }, [selectedMarket?.closes_at, selectedMarket?.status])
 
   // ── loading skeleton ──────────────────────────────────────────────────────
   if (loading) {
@@ -588,7 +594,7 @@ export default function MarketPage() {
   }
 
   return (
-    <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '16px 24px 60px' }}>
+    <div className="market-page" style={{ maxWidth: '1400px', margin: '0 auto', padding: '16px 24px 60px' }}>
 
       {/* breadcrumb */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px', flexWrap: 'wrap' }}>
@@ -617,7 +623,7 @@ export default function MarketPage() {
       </div>
 
       {/* ── stream embed (full width) ── */}
-      <div style={{
+      <div className="stream-frame" style={{
         borderRadius: '14px', overflow: 'hidden', aspectRatio: '16/9', width: '100%',
         background: 'var(--surface-2)', border: '1px solid var(--border)',
         marginBottom: '20px',
@@ -632,10 +638,10 @@ export default function MarketPage() {
       </div>
 
       {/* ── below stream: LEFT = markets + detail, RIGHT = sticky bet widget ── */}
-      <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
+      <div className="market-layout">
 
         {/* ── LEFT: tabs + market cards + selected detail + activity ── */}
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="market-main" style={{ flex: 1, minWidth: 0 }}>
 
           {/* tab switcher */}
           <div style={{ display: 'flex', gap: '4px', marginBottom: '12px' }}>
@@ -730,6 +736,12 @@ export default function MarketPage() {
                     </h2>
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                       <StatusBadge status={sm.status} outcome={sm.outcome} />
+                      {expired && smOpen && (
+                        <span style={{
+                          padding: '3px 8px', borderRadius: '5px', fontSize: '9px', fontWeight: '800',
+                          fontFamily: 'var(--font-mono)', background: 'rgba(239,68,68,0.12)', color: 'var(--no)', letterSpacing: '0.08em',
+                        }}>10M LOCK</span>
+                      )}
                       <span style={{ color: expired ? 'var(--no)' : 'var(--muted)', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>{timeLeft}</span>
                     </div>
                   </div>
@@ -818,13 +830,7 @@ export default function MarketPage() {
         </div>
 
         {/* ── RIGHT: sticky bet widget + positions + holders ── */}
-        <div style={{
-          width: '360px', flexShrink: 0,
-          position: 'sticky', top: '16px',
-          maxHeight: 'calc(100vh - 48px)', overflowY: 'auto',
-          scrollbarWidth: 'none',
-          display: 'flex', flexDirection: 'column', gap: '10px',
-        }}>
+        <div className="market-bet-rail">
           {sm && odds ? (
             <>
               {/* bet widget */}

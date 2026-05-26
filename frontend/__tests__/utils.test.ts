@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { calculatePrice, BucketPool } from '../lib/utils'
+import { calculatePrice, BucketPool, getMarketLockState, isMarketBettingLocked } from '../lib/utils'
 
 const EQUAL_BUCKETS: BucketPool[] = [
   { bucket_id: 'A', pool_usdc: 0, seed_usdc: 25 },
@@ -66,5 +66,29 @@ describe('calculatePrice', () => {
     // A: effective = 100+25=125, total effective = 125+50+50+50 = 275
     // price_A = 125/275 ≈ 0.4545
     expect(prices.find(p => p.bucket_id === 'A')!.price).toBeCloseTo(125 / 275, 4)
+  })
+})
+
+describe('market lock helpers', () => {
+  const closeAt = '2026-05-12T12:00:00.000Z'
+
+  it('keeps markets bettable before the 10-minute lock window', () => {
+    const now = new Date('2026-05-12T11:49:59.000Z')
+    expect(isMarketBettingLocked(closeAt, 'open', now)).toBe(false)
+    expect(getMarketLockState({ status: 'open', closes_at: closeAt }, now.getTime()).isBettable).toBe(true)
+  })
+
+  it('locks markets at the 10-minute cutoff', () => {
+    const now = new Date('2026-05-12T11:50:00.000Z')
+    expect(isMarketBettingLocked(closeAt, 'open', now)).toBe(true)
+    const state = getMarketLockState({ status: 'open', closes_at: closeAt }, now.getTime())
+    expect(state.isBettable).toBe(false)
+    expect(state.isLockedByTime).toBe(true)
+  })
+
+  it('does not allow non-open markets', () => {
+    const now = new Date('2026-05-12T11:00:00.000Z')
+    expect(isMarketBettingLocked(closeAt, 'resolved', now)).toBe(true)
+    expect(getMarketLockState({ status: 'resolved', closes_at: closeAt }, now.getTime()).isBettable).toBe(false)
   })
 })
